@@ -10,6 +10,7 @@ class IemocapRawSigDataset(BaseDataset):
     @staticmethod
     def modify_commandline_options(parser, isTrain=None):
         parser.add_argument('--cvNo', type=int, help='which cross validation set')
+        parser.add_argument('--norm_sig', type=str, default='None', choices=['None', 'utt', 'all'], help='which cross validation set')
         return parser
     
     def __init__(self, opt, set_name):
@@ -18,9 +19,10 @@ class IemocapRawSigDataset(BaseDataset):
         '''
         super().__init__(opt)
         cvNo = opt.cvNo
-        label_path = "/data7/lrc/IEMOCAP_features_npy/target/{}/"
+        label_path = "/data6/lrc/IEMOCAP_features_npy/target/{}/"
         # mask for text feature
-        self.data_root = '/data3/lrc/IEMOCAP_full_release/'
+        self.norm = opt.norm_sig
+        self.data_root = '/data6/lrc/IEMOCAP_features_npy/wavs/raw'
         self.label = np.load(label_path.format(cvNo) + f"{set_name}_label.npy")
         self.label = np.argmax(self.label, axis=1)
         self.int2name = np.load(label_path.format(cvNo) + f"{set_name}_int2name.npy")
@@ -29,10 +31,19 @@ class IemocapRawSigDataset(BaseDataset):
     
     def __getitem__(self, index):
         utt_id = self.int2name[index][0].decode()
-        wav_path = osp.join(self.data_root, self.get_wav_path(utt_id))
+        wav_path = osp.join(self.data_root, utt_id + '.wav')
         signal, _ = sf.read(wav_path)
-        # signal = signal.astype(np.float64)
-        # signal = signal/np.max(np.abs(signal))
+        if self.norm == 'None':
+            pass
+        elif self.norm == 'utt':
+            mean = signal.mean()
+            std = signal.std()
+            signal = (signal - mean) / std
+        elif self.norm == 'all':
+            mean = -7.395432666646425e-06
+            std = 0.058110240439255334
+            signal = (signal - mean) / std
+
         signal = torch.from_numpy(signal).float()
         label = torch.tensor(self.label[index])
         int2name = self.int2name[index][0].decode()
@@ -44,11 +55,6 @@ class IemocapRawSigDataset(BaseDataset):
     
     def __len__(self):
         return len(self.label)
-    
-    def get_wav_path(self, utt_id):
-        ses_id = utt_id[4]
-        dialog_id = '_'.join(utt_id.split('_')[:-1])
-        return osp.join(f'Session{ses_id}', 'sentences/wav', dialog_id, utt_id + '.wav')
 
     def collate_fn(self, batch):
         sigs = [sample['signal'] for sample in batch]
