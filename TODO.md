@@ -39,7 +39,7 @@
         signal = (signal - mean) / std
         ```
 
-        -- **效果提升很明显** --
+        -- **trn提升速度稍微加快, val最大值有所提升, tst上提升幅度不大** --
 
 + 大参数1dcnn 64channel && 128channel
 
