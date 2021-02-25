@@ -5,6 +5,9 @@ import torch.nn as nn
 import os.path as osp
 from torch.autograd import Variable
 import math
+import configparser as ConfigParser
+# from optparse import OptionParser
+from argparse import Namespace
 
 
 def flip(x, dim):
@@ -477,14 +480,10 @@ class SincNetEncoder(nn.Module):
         self.fc = MLP(dnn_options)
     
     def load_default_cfg_cnn(self):
-        import configparser as ConfigParser
-        from optparse import OptionParser
         default_cfg_path = osp.join(osp.dirname(__file__), 'SincNet_IEMOCAP.cfg')
         Config = ConfigParser.ConfigParser()
         Config.read(default_cfg_path)
-        parser = OptionParser()
-        (options, _) = parser.parse_args()
-
+        options = Namespace()
         # [cnn]
         options.cnn_N_filt = Config.get('cnn', 'cnn_N_filt')
         options.cnn_len_filt = Config.get('cnn', 'cnn_len_filt')
@@ -528,8 +527,7 @@ class SincNetEncoder(nn.Module):
         default_cfg_path = osp.join(osp.dirname(__file__), 'SincNet_IEMOCAP.cfg')
         Config = ConfigParser.ConfigParser()
         Config.read(default_cfg_path)
-        parser = OptionParser()
-        (options, _) = parser.parse_args()
+        options = Namespace()
         # [dnn]
         options.fc_lay = Config.get('dnn', 'fc_lay')
         options.fc_drop = Config.get('dnn', 'fc_drop')
@@ -562,9 +560,9 @@ class SincNetEncoder(nn.Module):
         return self.fc(self.cnn(inp))
 
 if __name__ == '__main__':
-    device = torch.device('cuda:6')
+    device = torch.device('cuda:0')
     net = SincNetEncoder().to(device)
     # print(net)
-    inp = torch.rand(16 * 400, 3200).float().to(device)
+    inp = torch.rand(32 * 50, 3200).float().to(device)
     out = net(inp)
     print(out.shape)
