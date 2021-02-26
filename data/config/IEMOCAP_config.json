@@ -1,0 +1,6 @@
+{
+    "data_root": "/data6/lrc/IEMOCAP_full_release/",
+    "target_root": "/data6/lrc/IEMOCAP_features_npy/target",
+    "total_cv": 10,
+    "feature_root": "/data6/lrc/IEMOCAP_features_npy"
+}
