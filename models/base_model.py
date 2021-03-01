@@ -130,7 +130,7 @@ class BaseModel(ABC):
         """Calculate additional output images for visdom and HTML visualization"""
         pass
 
-    def update_learning_rate(self, logger):
+    def update_learning_rate(self, logger=None):
         """Update learning rates for all the networks; called at the end of every epoch"""
         for scheduler in self.schedulers:
             if self.opt.lr_policy == 'plateau':
@@ -140,7 +140,16 @@ class BaseModel(ABC):
 
         lr = self.optimizers[0].param_groups[0]['lr']
         # print('learning rate = %.7f' % lr)
-        logger.info('learning rate = %.7f' % lr)
+        if logger:
+            logger.info('learning rate = %.7f' % lr)
+
+    def set_learning_rate(self, lr, logger=None):
+        for optimizer in self.optimizers:
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr
+        if logger:
+            logger.info('Mannual adjust learning rate = %.4e' % lr)
+
 
     def get_current_visuals(self):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""

@@ -27,6 +27,11 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
         parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
 
+        # warm-up
+        parser.add_argument('--warmup', action='store_true', help='# whether to do warmup')
+        parser.add_argument('--warmup_epoch', type=int, default=5, help='# of epoch to warmup the network')
+        parser.add_argument('--warmup_lr', type=float, default=1e-8, help='# lr used in warmup procedure')
+
         # expr setting 
         parser.add_argument('--run_idx', type=int, default=1, help='experiment number; for repeat experiment')
         self.isTrain = True

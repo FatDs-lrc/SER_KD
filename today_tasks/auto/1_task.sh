@@ -1,15 +1,11 @@
-screen -dmS emo_ablation_1
-screen -x -S emo_ablation_1 -p 0 -X stuff 'sh today_tasks/emo_ablation.sh multi A 1 3
+screen -dmS transformer_test_1
+screen -x -S transformer_test_1 -p 0 -X stuff 'source activate torch
 '
-screen -x -S emo_ablation_1 -p 0 -X stuff 'sh today_tasks/emo_ablation.sh multi A 2 3
+screen -x -S transformer_test_1 -p 0 -X stuff 'sh today_tasks/transformer.sh 2 meanpool 1 1
 '
-screen -x -S emo_ablation_1 -p 0 -X stuff 'sh today_tasks/emo_ablation.sh multi V 1 3
+screen -x -S transformer_test_1 -p 0 -X stuff 'sh today_tasks/transformer.sh 2 meanpool 2 1
 '
-screen -x -S emo_ablation_1 -p 0 -X stuff 'sh today_tasks/emo_ablation.sh multi V 2 3
+screen -x -S transformer_test_1 -p 0 -X stuff 'sh today_tasks/transformer.sh 2 last 1 1
 '
-screen -x -S emo_ablation_1 -p 0 -X stuff 'sh today_tasks/emo_ablation.sh multi L 1 3
-'
-screen -x -S emo_ablation_1 -p 0 -X stuff 'sh today_tasks/emo_ablation.sh multi L 2 3
-'
-screen -x -S emo_ablation_1 -p 0 -X stuff 'exit
+screen -x -S transformer_test_1 -p 0 -X stuff 'sh today_tasks/transformer.sh 2 last 2 1
 '

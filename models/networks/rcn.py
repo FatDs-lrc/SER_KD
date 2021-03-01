@@ -27,55 +27,52 @@ class EncCNN1d(nn.Module):
         return out  
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dropout=0.3, \
-                                pooling=False, pool_size=None, pool_stride=None):
+    def __init__(self, in_channels, out_channels, kernel_size):
         super().__init__()
-        self.conv1 = [
-            nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=(kernel_size-1)//2),
-            nn.BatchNorm1d(out_channels),
-            nn.LeakyReLU(0.3),
-            nn.Dropout(dropout)
-        ]
-        self.conv2 = [
-            nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=(kernel_size-1)//2),
-            nn.BatchNorm1d(out_channels),
-            nn.LeakyReLU(0.3),
-            nn.Dropout(dropout)
-        ]
-        if pooling:
-            self.conv1.append(
-                nn.MaxPool1d(kernel_size=pool_size, stride=pool_stride, padding=(kernel_size-1)//2)
-            )
-            self.conv2.append(
-                nn.MaxPool1d(kernel_size=pool_size, stride=pool_stride, padding=(kernel_size-1)//2)
-            )
-        self.conv1 = nn.Sequential(*self.conv1)
-        self.conv2 = nn.Sequential(*self.conv2)
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=(kernel_size-1)//2)
+        self.bn1 = nn.BatchNorm1d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=(kernel_size-1)//2)
+        self.bn2 = nn.BatchNorm1d(out_channels)
     
     def forward(self, x):
+        identity = x
+
         out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
         out = self.conv2(out)
-        return out + x
+        out = self.bn2(out)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
 
 
 class CNNBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dropout=0.3, downsample=True, \
-                                pooling=True, pool_size=None, pool_stride=None):
+    def __init__(self, in_channels, out_channels, kernel_size, downsample=True):
         super().__init__()
-        self.conv_down = nn.Conv1d(in_channels, out_channels, kernel_size, stride=2 if downsample else 1)
-        self.block1 = ResBlock(out_channels, out_channels, kernel_size, dropout)
-        self.block2 = ResBlock(out_channels, out_channels, kernel_size, dropout)
+        # self.conv_down = nn.Conv1d(in_channels, out_channels, kernel_size, \
+        #     stride=2 if downsample else 1, padding=(kernel_size-1)//2)#, bias=False)
+        self.conv_down = nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=2 if downsample else 1, bias=False)
+        self.bn = nn.BatchNorm1d(out_channels)
+        self.block1 = ResBlock(out_channels, out_channels, kernel_size)
+        self.block2 = ResBlock(out_channels, out_channels, kernel_size)
     
     def forward(self, x):
-        downsample = self.conv_down(x)
-        out = self.block1(downsample)
-        out = self.block2(downsample)
+        x = self.conv_down(x)
+        x = self.bn(x)
+        out = self.block1(x)
+        out = self.block2(out)
         return out
         
 class ResNetEncoder(nn.Module):
     def __init__(self, input_dim=130, channels=128):
         super().__init__()
-        self.cnn_in = nn.Conv1d(input_dim, channels, kernel_size=10, stride=2)
+        self.conv0 = nn.Conv1d(input_dim, channels, kernel_size=10, stride=2, bias=False)
+        self.bn0 = nn.BatchNorm1d(channels)             # v2
         self.cnn_block1 = CNNBlock(channels, 2*channels, kernel_size=5, downsample=True)
         self.cnn_block2 = CNNBlock(2*channels, 4*channels, kernel_size=5, downsample=True)
         self.cnn_block3 = CNNBlock(4*channels, 4*channels, kernel_size=3, downsample=False)
@@ -83,8 +80,9 @@ class ResNetEncoder(nn.Module):
     
     def forward(self, x):
         x = x.transpose(1, 2)
-        _in = self.cnn_in(x)
-        out = self.cnn_block1(_in)
+        x = self.conv0(x)
+        x = self.bn0(x)         # v2
+        out = self.cnn_block1(x)
         out = self.cnn_block2(out)
         out = self.cnn_block3(out)
         out = self.cnn_block4(out)
@@ -117,7 +115,7 @@ if __name__ == '__main__':
     # print(out2.shape)
     # print(out3.shape)
     # print(out4.shape)
-
+    
     x = torch.rand(2, 600, 130)
     net = ResNetEncoder(channels=64)
     out = net(x)
@@ -127,3 +125,11 @@ if __name__ == '__main__':
     for param in net.parameters():
         num_params += param.numel()
     print('Total number of parameters : %.3f M' % (num_params / 1e6))
+
+    # from torchsummary import summary
+    # net = ResNetEncoder(channels=64)
+    # summary(net, (600, 130), device='cpu')
+    # num_params = 0
+    # for param in net.parameters():
+    #     num_params += param.numel()
+    # print('Total number of parameters : %.3f M' % (num_params / 1e6))

@@ -1,27 +1,11 @@
-screen -dmS simple_map_3
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.1 0.01 4
+screen -dmS transformer_test_3
+screen -x -S transformer_test_3 -p 0 -X stuff 'source activate torch
 '
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.1 0.05 4
+screen -x -S transformer_test_3 -p 0 -X stuff 'sh today_tasks/transformer.sh 6 meanpool 1 3
 '
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.1 0.1 4
+screen -x -S transformer_test_3 -p 0 -X stuff 'sh today_tasks/transformer.sh 6 meanpool 2 3
 '
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.1 0.2 4
+screen -x -S transformer_test_3 -p 0 -X stuff 'sh today_tasks/transformer.sh 6 last 1 3
 '
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.2 0.01 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.2 0.05 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.2 0.1 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.2 0.2 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.4 0.01 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.4 0.05 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.4 0.1 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'sh today_tasks/simple_map.sh A2L 2 0.4 0.2 4
-'
-screen -x -S simple_map_3 -p 0 -X stuff 'exit
+screen -x -S transformer_test_3 -p 0 -X stuff 'sh today_tasks/transformer.sh 6 last 2 3
 '

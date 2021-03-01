@@ -4,12 +4,12 @@ import os
 import json
 import torch.nn.functional as F
 from models.base_model import BaseModel
-from models.networks.rnn import LSTMEncoder
+from models.networks.transformer import TransformerEncoder
 from models.networks.rcn import EncCNN1d, ResNetEncoder
 from models.networks.fc import FcEncoder
 
 
-class ComparECnnLSTMmodel(BaseModel):
+class CnnTransformerModel(BaseModel):
     '''
     A: DNN
     V: denseface + LSTM + maxpool
@@ -21,9 +21,9 @@ class ComparECnnLSTMmodel(BaseModel):
         parser.add_argument('--enc_channel', type=int, default=128)
         parser.add_argument('--output_dim', type=int, default=4)
         parser.add_argument('--cls_layers', type=str, default='128,128')
-        parser.add_argument('--hidden_size', type=int, default=128)
-        parser.add_argument('--embd_method', type=str, default='maxpool')
-        parser.add_argument('--bidirection', action='store_true')
+        parser.add_argument('--num_layers', type=int, default=2)
+        parser.add_argument('--nhead', type=int, default=4)
+        parser.add_argument('--dim_feedforward', type=int, default=4)
         return parser
 
     def __init__(self, opt):
@@ -35,11 +35,11 @@ class ComparECnnLSTMmodel(BaseModel):
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['CE']
         self.model_names = ['enc', 'rnn', 'C']
-        self.netenc = ResNetEncoder(opt.input_dim, opt.enc_channel)
-        self.netrnn = LSTMEncoder(opt.enc_channel*2, opt.hidden_size, embd_method='maxpool', bidirection=opt.bidirection)
+        self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
+        # self.netrnn = LSTMEncoder(opt.enc_channel*2, opt.hidden_size, embd_method='maxpool', bidirection=opt.bidirection)
+        self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')] + [opt.output_dim]
-        expand = 2 if opt.bidirection else 1
-        self.netC = FcEncoder(opt.hidden_size * expand, cls_layers, dropout=0.3)
+        self.netC = FcEncoder(opt.enc_channel*2, cls_layers, dropout=0.3)
             
         if self.isTrain:
             self.criterion_ce = torch.nn.CrossEntropyLoss()
@@ -76,10 +76,8 @@ class ComparECnnLSTMmodel(BaseModel):
         self.loss_CE = self.criterion_ce(self.logits, self.label)
         loss = self.loss_CE
         loss.backward()
-        # # 改成只在LSTM上 ? 
-        # for model in self.model_names:
-        #     torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 5.0) # 0.1
-        torch.nn.utils.clip_grad_norm_(self.netrnn.parameters(), 5.0) # 0.1
+        for model in self.model_names:
+            torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 5.0) # 0.1
 
     def optimize_parameters(self, epoch):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""

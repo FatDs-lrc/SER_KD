@@ -41,27 +41,29 @@ def make_task(parameters):
         task_file = os.path.join(auto_script_dir, f'{i}_task.sh')
         f = open(task_file, 'w')
         f.write('screen -dmS {}\n'.format(session_name))
+        f.write("screen -x -S {} -p 0 -X stuff '{}\n'\n".format(session_name, 'source activate torch'))
         task_num = len(cmd_with_gpu) / num_sessions
         cmds = cmd_with_gpu[int(i*task_num):int((i+1)*task_num)]
         for cmd in cmds:
             _cmd = "screen -x -S {} -p 0 -X stuff '{}\n'\n".format(session_name, cmd)
             f.write(_cmd)
-        f.write("screen -x -S {} -p 0 -X stuff 'exit\n'\n".format(session_name))
-   
-auto_script_dir = 'today_tasks/auto'        # 生成脚本路径
-task_script = 'today_tasks/emo_ablation.sh'         # 执行script路径
-avialable_gpus = [2,3,4]                    # 可用GPU有哪些
-num_sessions = 3                            # 一共开多少个session同时执行
-avialable_gpus = avialable_gpus[:num_sessions]
-screen_name = 'emo_ablation'
-parameters = {                              # 一共有哪些参数
-   'feat_type': ['ef', 'multi', 'single'],
-   'feat_modality': ['A', 'V', 'L'],
-   'run_idx': [1, 2]
-}
-make_task(parameters)
+        # f.write("screen -x -S {} -p 0 -X stuff 'exit\n'\n".format(session_name))
 
-for i in range(num_sessions):
-    cmd = 'sh {}/{}_task.sh'.format(auto_script_dir, i)
-    print(cmd)
-    os.system(cmd)
+if __name__ == '__main__':
+    auto_script_dir = 'today_tasks/auto'        # 生成脚本路径
+    task_script = 'today_tasks/transformer.sh'         # 执行script路径
+    avialable_gpus = [0,1,2,3]                    # 可用GPU有哪些
+    num_sessions = 4                              # 一共开多少个session同时执行
+    avialable_gpus = avialable_gpus[:num_sessions]
+    screen_name = 'transformer_test'
+    parameters = {                              # 一共有哪些参数
+        'num_layers': [1, 2, 3, 6],
+        'embd_method': ['meanpool', 'last'],
+        'run_idx': [1, 2]
+    }
+    make_task(parameters)
+
+    for i in range(num_sessions):
+        cmd = 'sh {}/{}_task.sh'.format(auto_script_dir, i)
+        print(cmd)
+        os.system(cmd)

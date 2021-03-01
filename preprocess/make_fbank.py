@@ -29,7 +29,6 @@ class FbankExtractor(object):
         )
         return y
 
-
 def get_trn_val_tst(target_root_dir, cv, setname):
     int2name = np.load(os.path.join(target_root_dir, str(cv), '{}_int2name.npy'.format(setname)))
     int2label = np.load(os.path.join(target_root_dir, str(cv), '{}_label.npy'.format(setname)))

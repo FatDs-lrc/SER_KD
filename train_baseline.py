@@ -67,6 +67,16 @@ if __name__ == '__main__':
     best_epoch_acc, best_epoch_f1 = 0, 0
     best_eval_epoch = -1           # record the best eval epoch
 
+    # warm-up
+    if opt.warmup:
+        model.set_learning_rate(opt.warmup_lr, logger)
+        for epoch in range(opt.warmup_epoch):
+            for i, data in enumerate(dataset):  # inner loop within one epoch
+                model.set_input(data)           # unpack data from dataset and apply preprocessing
+                model.optimize_parameters(epoch)   # calculate loss functions, get gradients, update network weights
+            logger.info('Warmup [{} / {}]'.format(epoch, opt.warmup_epoch))
+        model.set_learning_rate(opt.lr, logger)
+    
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()    # timer for data loading per iteration
