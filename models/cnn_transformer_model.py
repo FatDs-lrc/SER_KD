@@ -36,7 +36,6 @@ class CnnTransformerModel(BaseModel):
         self.loss_names = ['CE']
         self.model_names = ['enc', 'rnn', 'C']
         self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
-        # self.netrnn = LSTMEncoder(opt.enc_channel*2, opt.hidden_size, embd_method='maxpool', bidirection=opt.bidirection)
         self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')] + [opt.output_dim]
         self.netC = FcEncoder(opt.enc_channel*2, cls_layers, dropout=0.3)
