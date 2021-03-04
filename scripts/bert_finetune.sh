@@ -8,9 +8,9 @@ do
 cmd="python train_baseline.py --dataset_mode=bert_tokenize 
 --model=bert --bert_type=bert-base-uncased --gpu_ids=$gpu
 --log_dir=./logs --checkpoints_dir=./checkpoints --print_freq=10 
---output_dim=5  --niter=6 --niter_decay=1
+--output_dim=4  --niter=1 --niter_decay=4
 --beta1=0.9 --init_type kaiming
---batch_size=128 --lr=1e-5 --run_idx=$run_idx
+--batch_size=32 --lr=2e-5 --run_idx=$run_idx
 --name=finetune --suffix={bert_type}_lr{lr}_run{run_idx}
 --cvNo=$i"
 

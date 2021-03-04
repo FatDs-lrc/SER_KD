@@ -3,10 +3,10 @@ import torch
 import os
 import torch.nn.functional as F
 from models.base_model import BaseModel
-from models.networks.classifier import BertClassifier
-from models.networks.classifier import RobertaClassifier
+from models.networks.classifier import BertClassifier, bert_classifier
+# from models.networks.classifier import RobertaClassifier
 from transformers import AutoConfig
-
+from transformers import AdamW
 
 class BertModel(BaseModel):
     @staticmethod
@@ -26,14 +26,16 @@ class BertModel(BaseModel):
         self.model_names = ['BC']
         self.pretrained_model = ['BC']
         # Bert Model
-        config = AutoConfig.from_pretrained(opt.bert_type)
-        self.netBC = BertClassifier.from_pretrained(opt.bert_type, config=config, output_dim=opt.output_dim)
+        # config = AutoConfig.from_pretrained(opt.bert_type)
+        # self.netBC = BertClassifier.from_pretrained(opt.bert_type, config=config, output_dim=opt.output_dim)
         # self.netBC = RobertaClassifier(config=config)
+        self.netBC = bert_classifier(opt.output_dim, opt.bert_type)
         if self.isTrain:
             self.criterion_ce = torch.nn.CrossEntropyLoss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             paremeters = [{'params': getattr(self, 'net'+net).parameters()} for net in self.model_names]
-            self.optimizer = torch.optim.Adam(paremeters, lr=opt.lr, betas=(opt.beta1, 0.999))
+            # self.optimizer = torch.optim.Adam(paremeters, lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer = AdamW(paremeters, lr=opt.lr, eps = 1e-8)
             self.optimizers.append(self.optimizer)
             self.output_dim = opt.output_dim
 
@@ -55,14 +57,20 @@ class BertModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.logits = self.netBC(self.token_ids, self.attention_mask)
+        output = self.netBC(
+            self.token_ids,
+            # token_type=None, 
+            attention_mask=self.attention_mask,
+            labels=self.label
+        )
+        self.loss, self.logits = output.loss, output.logits
         self.pred = F.softmax(self.logits, dim=-1)
         
     def backward(self):
         """Calculate the loss for back propagation"""
-        self.loss_CE = self.criterion_ce(self.logits, self.label)
-        loss = self.loss_CE
-        loss.backward()
+        # self.loss_CE = self.criterion_ce(self.logits, self.label)
+        self.loss_CE = self.loss
+        self.loss_CE.backward()
 
     def optimize_parameters(self, epoch):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""

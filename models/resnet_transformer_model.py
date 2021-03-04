@@ -5,11 +5,12 @@ import json
 import torch.nn.functional as F
 from models.base_model import BaseModel
 from models.networks.transformer import TransformerEncoder
-from models.networks.rcn import EncCNN1d, ResNetEncoder
+from models.networks.rcn import EncCNN1d
+from models.networks.rcn2 import resnet18, resnet34
 from models.networks.fc import FcEncoder
 
 
-class CnnTransformerModel(BaseModel):
+class ResnetTransformerModel(BaseModel):
     '''
     A: DNN
     V: denseface + LSTM + maxpool
@@ -35,10 +36,10 @@ class CnnTransformerModel(BaseModel):
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['CE']
         self.model_names = ['enc', 'rnn', 'C']
-        self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
-        self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
+        self.netenc = resnet18(opt.input_dim)
+        self.netrnn = TransformerEncoder(512, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')] + [opt.output_dim]
-        self.netC = FcEncoder(opt.enc_channel*2, cls_layers, dropout=0.3)
+        self.netC = FcEncoder(512, cls_layers, dropout=0.3)
             
         if self.isTrain:
             self.criterion_ce = torch.nn.CrossEntropyLoss()

@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
-from transformers import BertModel, BertPreTrainedModel
+from transformers import BertModel, BertPreTrainedModel, BertForSequenceClassification
 # from transformers import AutoModel, AutoModelForSequenceClassification
-from transformers import RobertaModel
-from models.networks.tools import init_weights
+from transformers import RobertaModel, RobertaForSequenceClassification
+# from models.networks.tools import init_weights
 
 class LSTMClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, fc1_size, output_size, dropout_rate):
@@ -187,26 +187,28 @@ class BertClassifier(BertPreTrainedModel):
         cls_reps = reps[:, 0]
         logits = self.cls_layer(cls_reps)
         return logits
+    
+def bert_classifier(num_classes, bert_name):
+    model = BertForSequenceClassification.from_pretrained(
+        bert_name, num_labels=num_classes,
+        output_attentions=False, output_hidden_states=False
+    )
+    return model
 
-class RobertaClassifier(nn.Module):
-    def __init__(self, config, output_dim=4):
-        super().__init__()
-        self.bert = RobertaModel.from_pretrained('roberta-base')
-        # The classification layer that takes the [CLS] representation and outputs the logit
-        self.cls_layer = nn.Linear(config.hidden_size, output_dim)
-        # init_weights(self.cls_layer)
-
-    def forward(self, input_ids, attention_mask):
-        # Feed the input to Bert model to obtain contextualized representations
-        reps, _ = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        # Obtain the representations of [CLS] heads
-        cls_reps = reps[:, 0]
-        logits = self.cls_layer(cls_reps)
-        return logits
-
+def roberta_classifier(num_classes, bert_name):
+    model = RobertaForSequenceClassification.from_pretrained(
+        bert_name, num_labels=num_classes,
+        output_attentions=False, output_hidden_states=False
+    )
+    return model
 
 if __name__ == '__main__':
-    from transformers import AutoConfig
-    config = AutoConfig.from_pretrained('bert-base-uncased')
-    cls_net = BertClassifier(config, 4)
+    # from transformers import AutoConfig
+    # config = AutoConfig.from_pretrained('bert-base-uncased')
+    # cls_net = BertClassifier(config, 4)
+    input = torch.ones([2, 24]).long()
+    label = torch.ones(2).long()
+    cls_net = bert_classifier(4, 'bert-base-uncased')
+    print(cls_net)
+    print(cls_net(input, labels=label))
     

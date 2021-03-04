@@ -4,3 +4,4 @@ __pycache__
 checkpoints
 logs
 today_tasks/auto/*
+data/config/*
