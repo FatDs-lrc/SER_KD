@@ -47,11 +47,11 @@ class LSTMEncoder(nn.Module):
                                                     # r_out.transpose(1, 2) => [batch_size, hidden_size, seq_len]
         in_feat = r_out.transpose(1,2)
         embd = F.max_pool1d(in_feat, in_feat.size(2), in_feat.size(2))
-        return embd.squeeze()
+        return embd.squeeze(dim=-1)
 
     def embd_last(self, r_out, h_n):
         #Just for  one layer and single direction
-        return h_n.squeeze()
+        return h_n.squeeze(dim=-1)
 
     def forward(self, x):
         '''

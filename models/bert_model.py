@@ -4,7 +4,7 @@ import os
 import torch.nn.functional as F
 from models.base_model import BaseModel
 from models.networks.classifier import BertClassifier, bert_classifier
-# from models.networks.classifier import RobertaClassifier
+from models.networks.classifier import roberta_classifier
 from transformers import AutoConfig
 from transformers import AdamW
 
@@ -29,7 +29,10 @@ class BertModel(BaseModel):
         # config = AutoConfig.from_pretrained(opt.bert_type)
         # self.netBC = BertClassifier.from_pretrained(opt.bert_type, config=config, output_dim=opt.output_dim)
         # self.netBC = RobertaClassifier(config=config)
-        self.netBC = bert_classifier(opt.output_dim, opt.bert_type)
+        if 'roberta' in opt.bert_type:
+            self.netBC = roberta_classifier(opt.output_dim, opt.bert_type)
+        else:
+            self.netBC = bert_classifier(opt.output_dim, opt.bert_type)
         if self.isTrain:
             self.criterion_ce = torch.nn.CrossEntropyLoss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.

@@ -171,14 +171,15 @@ class MaxPoolFc(nn.Module):
         out = self.fc(out)
         
         return out
-
-class BertClassifier(BertPreTrainedModel):
-    def __init__(self, config, output_dim):
+    
+class BertClassifierNAIVE(BertPreTrainedModel):
+    def __init__(self, config, output_dim, embd_method='cls'):
         super().__init__(config)
         self.bert = BertModel(config)
         # The classification layer that takes the [CLS] representation and outputs the logit
         self.cls_layer = nn.Linear(config.hidden_size, output_dim)
-        # init_weights(self.cls_layer)
+        self.init_weights(self.cls_layer)
+        self.embd_method
 
     def forward(self, input_ids, attention_mask):
         # Feed the input to Bert model to obtain contextualized representations
@@ -187,18 +188,53 @@ class BertClassifier(BertPreTrainedModel):
         cls_reps = reps[:, 0]
         logits = self.cls_layer(cls_reps)
         return logits
+
+class BertClassifier(BertPreTrainedModel):
+    def __init__(self, config, num_classes, embd_method): # 
+        super().__init__(config)
+        self.num_labels = num_classes
+        self.embd_method = embd_method
+        if self.embd_method not in ['cls', 'mean', 'max']:
+            raise NotImplementedError('Only [cls, mean, max] embd_method is supported, \
+                but got', config.embd_method)
+
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.cls_layer = nn.Linear(config.hidden_size, config.num_labels)
+        self.init_weights()
+    
+    def forward(self, input_ids, attention_mask):
+        # Feed the input to Bert model to obtain contextualized representations
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+        )
+        last_hidden, cls_token, hidden_states = outputs
+        print((last_hidden == hidden_states[-1]).all())
+        # using different embed method
+        if self.embd_method == 'cls':
+            cls_reps = cls_token
+        elif self.embd_method == 'mean':
+            cls_reps = torch.mean(last_hidden, dim=1)
+        elif self.embd_method == 'max':
+            cls_reps = torch.max(last_hidden, dim=1)
+        
+        cls_reps = self.dropout(cls_reps)
+        logits = self.cls_layer(cls_reps)
+        return logits, hidden_states
     
 def bert_classifier(num_classes, bert_name):
     model = BertForSequenceClassification.from_pretrained(
         bert_name, num_labels=num_classes,
-        output_attentions=False, output_hidden_states=False
+        output_attentions=False, output_hidden_states=True
     )
     return model
 
 def roberta_classifier(num_classes, bert_name):
     model = RobertaForSequenceClassification.from_pretrained(
         bert_name, num_labels=num_classes,
-        output_attentions=False, output_hidden_states=False
+        output_attentions=False, output_hidden_states=True
     )
     return model
 
@@ -207,8 +243,22 @@ if __name__ == '__main__':
     # config = AutoConfig.from_pretrained('bert-base-uncased')
     # cls_net = BertClassifier(config, 4)
     input = torch.ones([2, 24]).long()
+    attention_mask = torch.ones([2, 24]).long()
     label = torch.ones(2).long()
-    cls_net = bert_classifier(4, 'bert-base-uncased')
+    cls_net = BertClassifier.from_pretrained('bert-base-uncased', num_classes=4, embd_method='cls')
     print(cls_net)
-    print(cls_net(input, labels=label))
-    
+    logits, hidden_states = cls_net(input, attention_mask)
+    print(logits.shape)
+    print(len(hidden_states))
+    print(hidden_states[0].shape)
+    print(hidden_states[1].shape)
+
+    # model = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True)
+    # output = model(input)
+    # last_hidden, cls_token, hidden_states = output
+    # print(last_hidden.shape)
+    # print(cls_token.shape)
+    # print(len(hidden_states))
+    # print((hidden_states[0] == last_hidden).all())
+    # print((hidden_states[-1] == last_hidden).all())
+    # print((cls_token == last_hidden[:, 0, :]).all())

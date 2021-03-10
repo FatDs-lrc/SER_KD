@@ -36,14 +36,14 @@ class BertTokenizeDataset(BaseDataset):
     def __init__(self, opt, set_name): 
         super().__init__(opt)
         self.maxlen = 68
-        # data_root = '/data3/lrc/IEMOCAP_full_release/'
-        data_root = '/home/zzc/lrc/IEMOCAP_full_release/'
+        data_root = '/data3/lrc/IEMOCAP_full_release/'
+        # data_root = '/home/zzc/lrc/IEMOCAP_full_release/'
         self.text_lookup = IEMOCAP_text(data_root)
         self.tokenizer = AutoTokenizer.from_pretrained(opt.bert_type)
         # load label
         cvNo = opt.cvNo
-        # label_path = "/data7/lrc/IEMOCAP_features_npy/target/{}/"
-        label_path = "/home/zzc/lrc/IEMOCAP_features_npy/target/{}/" 
+        label_path = "/data6/lrc/IEMOCAP_features_npy/target/{}/"
+        # label_path = "/home/zzc/lrc/IEMOCAP_features_npy/target/{}/" 
         self.label = np.load(label_path.format(cvNo) + f"{set_name}_label.npy")
         self.label = np.argmax(self.label, axis=1)
         self.int2name = np.load(label_path.format(cvNo) + f"{set_name}_int2name.npy")
