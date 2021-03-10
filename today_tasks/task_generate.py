@@ -50,14 +50,14 @@ def make_task(parameters):
         # f.write("screen -x -S {} -p 0 -X stuff 'exit\n'\n".format(session_name))
 
 if __name__ == '__main__':
-    auto_script_dir = 'today_tasks/auto'        # 生成脚本路径
-    task_script = 'today_tasks/cnn_transformer.sh'         # 执行script路径
-    avialable_gpus = [2,3,6,7]                    # 可用GPU有哪些
-    num_sessions = 4                              # 一共开多少个session同时执行
+    auto_script_dir = 'today_tasks/auto'                    # 生成脚本路径
+    task_script = 'today_tasks/bert_externel_text.sh'       # 执行script路径
+    avialable_gpus = [0,5]                                  # 可用GPU有哪些
+    num_sessions = 2                                        # 一共开多少个session同时执行
     avialable_gpus = avialable_gpus[:num_sessions]
-    screen_name = 'cnn_transformer'
-    parameters = {                              # 一共有哪些参数
-        'num_layers': [1, 2, 3, 4],
+    screen_name = 'bert_explore'
+    parameters = {                                          # 一共有哪些参数
+        'embd_method': ['max', 'mean', 'cls'],
         'run_idx': [1, 2]
     }
     make_task(parameters)

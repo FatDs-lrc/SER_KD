@@ -8,11 +8,12 @@ from models.networks.classifier import roberta_classifier
 from transformers import AutoConfig
 from transformers import AdamW
 
-class BertModel(BaseModel):
+class BertClSModel(BaseModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser.add_argument('--bert_type', type=str, help='how many label types in this dataset')
         parser.add_argument('--output_dim', type=int, help='how many label types in this dataset')
+        parser.add_argument('--embd_method', type=str, default='cls', help='how many label types in this dataset')
         return parser
 
     def __init__(self, opt):
@@ -25,14 +26,11 @@ class BertModel(BaseModel):
         self.loss_names = ['CE']
         self.model_names = ['BC']
         self.pretrained_model = ['BC']
-        # Bert Model
-        # config = AutoConfig.from_pretrained(opt.bert_type)
-        # self.netBC = BertClassifier.from_pretrained(opt.bert_type, config=config, output_dim=opt.output_dim)
-        # self.netBC = RobertaClassifier(config=config)
         if 'roberta' in opt.bert_type:
             self.netBC = roberta_classifier(opt.output_dim, opt.bert_type)
         else:
-            self.netBC = bert_classifier(opt.output_dim, opt.bert_type)
+            # self.netBC = bert_classifier(opt.output_dim, opt.bert_type)
+            self.netBC = BertClassifier.from_pretrained(opt.bert_type, num_classes=opt.output_dim, embd_method=opt.embd_method)
         if self.isTrain:
             self.criterion_ce = torch.nn.CrossEntropyLoss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
@@ -60,19 +58,12 @@ class BertModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        output = self.netBC(
-            self.token_ids,
-            # token_type=None, 
-            attention_mask=self.attention_mask,
-            labels=self.label
-        )
-        self.loss, self.logits = output.loss, output.logits
+        self.logits, _ = self.netBC(self.token_ids, self.attention_mask)
         self.pred = F.softmax(self.logits, dim=-1)
         
     def backward(self):
         """Calculate the loss for back propagation"""
-        # self.loss_CE = self.criterion_ce(self.logits, self.label)
-        self.loss_CE = self.loss
+        self.loss_CE = self.criterion_ce(self.logits, self.label)
         self.loss_CE.backward()
 
     def optimize_parameters(self, epoch):
@@ -81,3 +72,13 @@ class BertModel(BaseModel):
         self.optimizer.zero_grad()  
         self.backward()            
         self.optimizer.step() 
+    
+    # def save_networks(self, epoch):
+    #     """Save all the networks to the disk.
+
+    #     Parameters:
+    #         epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+    #     """
+    #     save_filename = '%s_net_%s.pth' % (epoch, 'BC')
+    #     save_path = os.path.join(self.save_dir, save_filename)
+    #     self.netBC.save_pretrained(save_path)

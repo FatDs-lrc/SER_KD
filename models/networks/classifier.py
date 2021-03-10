@@ -200,7 +200,7 @@ class BertClassifier(BertPreTrainedModel):
 
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.cls_layer = nn.Linear(config.hidden_size, config.num_labels)
+        self.cls_layer = nn.Linear(config.hidden_size, self.num_labels)
         self.init_weights()
     
     def forward(self, input_ids, attention_mask):
@@ -210,15 +210,16 @@ class BertClassifier(BertPreTrainedModel):
             attention_mask=attention_mask,
             output_hidden_states=True,
         )
-        last_hidden, cls_token, hidden_states = outputs
-        print((last_hidden == hidden_states[-1]).all())
+        last_hidden = outputs.last_hidden_state
+        cls_token = outputs.pooler_output
+        hidden_states = outputs.hidden_states
         # using different embed method
         if self.embd_method == 'cls':
             cls_reps = cls_token
         elif self.embd_method == 'mean':
             cls_reps = torch.mean(last_hidden, dim=1)
         elif self.embd_method == 'max':
-            cls_reps = torch.max(last_hidden, dim=1)
+            cls_reps = torch.max(last_hidden, dim=1)[0]
         
         cls_reps = self.dropout(cls_reps)
         logits = self.cls_layer(cls_reps)

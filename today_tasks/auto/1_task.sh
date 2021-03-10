@@ -1,7 +1,9 @@
-screen -dmS cnn_transformer_1
-screen -x -S cnn_transformer_1 -p 0 -X stuff 'source activate torch
+screen -dmS bert_explore_1
+screen -x -S bert_explore_1 -p 0 -X stuff 'source activate torch
 '
-screen -x -S cnn_transformer_1 -p 0 -X stuff 'sh today_tasks/cnn_transformer.sh 2 1 3
+screen -x -S bert_explore_1 -p 0 -X stuff 'sh today_tasks/bert_externel_text.sh mean 2 5
 '
-screen -x -S cnn_transformer_1 -p 0 -X stuff 'sh today_tasks/cnn_transformer.sh 2 2 3
+screen -x -S bert_explore_1 -p 0 -X stuff 'sh today_tasks/bert_externel_text.sh cls 1 5
+'
+screen -x -S bert_explore_1 -p 0 -X stuff 'sh today_tasks/bert_externel_text.sh cls 2 5
 '
