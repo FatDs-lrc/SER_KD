@@ -4,7 +4,7 @@ gpu=$2
 
 # train_baseline
 cmd="python train_no_test.py --dataset_mode=text 
---model=bert_cls --bert_type=bert-base-uncased --gpu_ids=$gpu --data_type=combined
+--model=bert_cls --bert_type=roberta-base --gpu_ids=$gpu --data_type=combined
 --log_dir=./logs --checkpoints_dir=./checkpoints --print_freq=10 
 --output_dim=6 --niter=5 --niter_decay=1
 --beta1=0.9 --init_type=normal --no_test --embd_method=max

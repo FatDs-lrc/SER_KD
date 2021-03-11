@@ -4,7 +4,7 @@ import os
 import torch.nn.functional as F
 from models.base_model import BaseModel
 from models.networks.classifier import BertClassifier, bert_classifier
-from models.networks.classifier import roberta_classifier
+from models.networks.classifier import RobertaClassifier, roberta_classifier
 from transformers import AutoConfig
 from transformers import AdamW
 
@@ -27,7 +27,8 @@ class BertClSModel(BaseModel):
         self.model_names = ['BC']
         self.pretrained_model = ['BC']
         if 'roberta' in opt.bert_type:
-            self.netBC = roberta_classifier(opt.output_dim, opt.bert_type)
+            # self.netBC = roberta_classifier(opt.output_dim, opt.bert_type)
+            self.netBC = RobertaClassifier.from_pretrained(opt.bert_type, num_classes=opt.output_dim, embd_method=opt.embd_method)
         else:
             # self.netBC = bert_classifier(opt.output_dim, opt.bert_type)
             self.netBC = BertClassifier.from_pretrained(opt.bert_type, num_classes=opt.output_dim, embd_method=opt.embd_method)
@@ -73,12 +74,15 @@ class BertClSModel(BaseModel):
         self.backward()            
         self.optimizer.step() 
     
-    # def save_networks(self, epoch):
-    #     """Save all the networks to the disk.
+    def save_networks(self, epoch):
+        """Save all the networks to the disk.
 
-    #     Parameters:
-    #         epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
-    #     """
-    #     save_filename = '%s_net_%s.pth' % (epoch, 'BC')
-    #     save_path = os.path.join(self.save_dir, save_filename)
-    #     self.netBC.save_pretrained(save_path)
+        Parameters:
+            epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+        """
+        save_filename = '%s_net_%s.pth' % (epoch, 'BC')
+        save_path = os.path.join(self.save_dir, save_filename)
+        if len(self.gpu_ids) > 0 and torch.cuda.is_available():
+            self.netBC.module.save_pretrained(save_path)
+        else:
+            self.netBC.save_pretrained(save_path)

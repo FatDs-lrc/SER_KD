@@ -17,7 +17,8 @@ class TextDataset(BaseDataset):
     def __init__(self, opt, set_name): 
         super().__init__(opt)
         self.maxlen = 68
-        data_root = '/data6/lrc/EmotionXED/{}'.format(opt.data_type)
+        # data_root = '/data6/lrc/EmotionXED/{}'.format(opt.data_type)
+        data_root = '/home/zzc/lrc/EmotionXED/{}'.format(opt.data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(opt.bert_type)   
         self.no_test = opt.no_test
         if self.no_test and set_name == 'trn':

@@ -52,7 +52,7 @@ def make_task(parameters):
 if __name__ == '__main__':
     auto_script_dir = 'today_tasks/auto'                    # 生成脚本路径
     task_script = 'today_tasks/bert_externel_text.sh'       # 执行script路径
-    avialable_gpus = [0,5]                                  # 可用GPU有哪些
+    avialable_gpus = [0,1]                                  # 可用GPU有哪些
     num_sessions = 2                                        # 一共开多少个session同时执行
     avialable_gpus = avialable_gpus[:num_sessions]
     screen_name = 'bert_explore'

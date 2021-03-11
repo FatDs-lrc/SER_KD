@@ -3,7 +3,14 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from transformers import BertModel, BertPreTrainedModel, BertForSequenceClassification
 # from transformers import AutoModel, AutoModelForSequenceClassification
-from transformers import RobertaModel, RobertaForSequenceClassification
+from transformers import (
+    RobertaModel, 
+    RobertaForSequenceClassification, 
+)
+from transformers.models.roberta.modeling_roberta import (
+    RobertaClassificationHead,
+    RobertaPreTrainedModel
+)
 # from models.networks.tools import init_weights
 
 class LSTMClassifier(nn.Module):
@@ -224,6 +231,54 @@ class BertClassifier(BertPreTrainedModel):
         cls_reps = self.dropout(cls_reps)
         logits = self.cls_layer(cls_reps)
         return logits, hidden_states
+
+class RobertaCLS(nn.Module):
+    """Head for sentence-level classification tasks."""
+
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.out_proj = nn.Linear(config.hidden_size, config.num_labels)
+
+    def forward(self, features, **kwargs):
+        x = features
+        x = self.dropout(x)
+        x = self.dense(x)
+        x = torch.tanh(x)
+        x = self.dropout(x)
+        x = self.out_proj(x)
+        return x
+    
+class RobertaClassifier(RobertaPreTrainedModel):
+    def __init__(self, config, num_classes, embd_method='cls'):
+        super().__init__(config)
+        self.num_labels = num_classes
+        self.embd_method = embd_method
+        config.num_labels = self.num_labels
+        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.classifier = RobertaCLS(config)
+        self.init_weights()
+        
+    def forward(self, input_ids, attention_mask,):
+        outputs = self.roberta(
+            input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+        )
+        last_hidden = outputs.last_hidden_state
+        cls_token = outputs.pooler_output
+        hidden_states = outputs.hidden_states
+        # using different embed method
+        if self.embd_method == 'cls':
+            cls_reps = cls_token
+        elif self.embd_method == 'mean':
+            cls_reps = torch.mean(last_hidden, dim=1)
+        elif self.embd_method == 'max':
+            cls_reps = torch.max(last_hidden, dim=1)[0]
+        
+        logits = self.classifier(cls_reps)
+        return logits, hidden_states
     
 def bert_classifier(num_classes, bert_name):
     model = BertForSequenceClassification.from_pretrained(
@@ -246,8 +301,9 @@ if __name__ == '__main__':
     input = torch.ones([2, 24]).long()
     attention_mask = torch.ones([2, 24]).long()
     label = torch.ones(2).long()
-    cls_net = BertClassifier.from_pretrained('bert-base-uncased', num_classes=4, embd_method='cls')
-    print(cls_net)
+    cls_net = RobertaClassifier.from_pretrained('roberta-base', num_classes=4, embd_method='max')
+    cls_net = nn.DataParallel(cls_net, device_ids=[0])
+    cls_net.module.save_pretrained('./test/')
     logits, hidden_states = cls_net(input, attention_mask)
     print(logits.shape)
     print(len(hidden_states))
