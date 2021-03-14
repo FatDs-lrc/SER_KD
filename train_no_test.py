@@ -5,6 +5,7 @@ from opts.train_opts import TrainOptions
 from data import create_dataset_with_args
 from models import create_model
 from utils.logger import get_logger, ResultRecorder
+from tqdm import tqdm
 from sklearn.metrics import accuracy_score, recall_score, f1_score, confusion_matrix
 
 def make_path(path):
@@ -56,8 +57,10 @@ if __name__ == '__main__':
     result_recorder = ResultRecorder(os.path.join(opt.log_dir, opt.name, 'result.tsv'), total_cv=10) # init result recoreder
     suffix = '_'.join([opt.model, opt.dataset_mode])    # get logger suffix
     logger = get_logger(logger_path, suffix)            # get logger 
-
-    dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'val'])   
+    if opt.no_test:
+        dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'val'])   
+    if opt.no_val:
+        dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'tst'])   
     dataset_size = len(dataset)    # get the number of images in the dataset.
     logger.info('The number of training samples = %d' % dataset_size)
     model = create_model(opt)      # create a model given opt.model and other options
@@ -71,7 +74,9 @@ if __name__ == '__main__':
     if opt.warmup:
         model.set_learning_rate(opt.warmup_lr, logger)
         for epoch in range(opt.warmup_epoch):
-            for i, data in enumerate(dataset):  # inner loop within one epoch
+            for i, data in tqdm(                # inner loop within one epoch
+                    enumerate(dataset), total=len(dataset)//opt.batch_size
+                ):  
                 model.set_input(data)           # unpack data from dataset and apply preprocessing
                 model.optimize_parameters(epoch)   # calculate loss functions, get gradients, update network weights
             logger.info('Warmup [{} / {}]'.format(epoch, opt.warmup_epoch))

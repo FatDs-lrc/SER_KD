@@ -267,11 +267,11 @@ class RobertaClassifier(RobertaPreTrainedModel):
             output_hidden_states=True,
         )
         last_hidden = outputs.last_hidden_state
-        cls_token = outputs.pooler_output
+        # cls_token = outputs.pooler_output
         hidden_states = outputs.hidden_states
         # using different embed method
         if self.embd_method == 'cls':
-            cls_reps = cls_token
+            cls_reps = last_hidden[:, 0]
         elif self.embd_method == 'mean':
             cls_reps = torch.mean(last_hidden, dim=1)
         elif self.embd_method == 'max':
@@ -298,17 +298,18 @@ if __name__ == '__main__':
     # from transformers import AutoConfig
     # config = AutoConfig.from_pretrained('bert-base-uncased')
     # cls_net = BertClassifier(config, 4)
-    input = torch.ones([2, 24]).long()
-    attention_mask = torch.ones([2, 24]).long()
-    label = torch.ones(2).long()
-    cls_net = RobertaClassifier.from_pretrained('roberta-base', num_classes=4, embd_method='max')
-    cls_net = nn.DataParallel(cls_net, device_ids=[0])
-    cls_net.module.save_pretrained('./test/')
-    logits, hidden_states = cls_net(input, attention_mask)
-    print(logits.shape)
-    print(len(hidden_states))
-    print(hidden_states[0].shape)
-    print(hidden_states[1].shape)
+
+    # input = torch.ones([2, 24]).long()
+    # attention_mask = torch.ones([2, 24]).long()
+    # label = torch.ones(2).long()
+    # cls_net = RobertaClassifier.from_pretrained('roberta-base', num_classes=4, embd_method='max')
+    # cls_net = nn.DataParallel(cls_net, device_ids=[0])
+    # cls_net.module.save_pretrained('./test/')
+    # logits, hidden_states = cls_net(input, attention_mask)
+    # print(logits.shape)
+    # print(len(hidden_states))
+    # print(hidden_states[0].shape)
+    # print(hidden_states[1].shape)
 
     # model = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True)
     # output = model(input)
@@ -319,3 +320,5 @@ if __name__ == '__main__':
     # print((hidden_states[0] == last_hidden).all())
     # print((hidden_states[-1] == last_hidden).all())
     # print((cls_token == last_hidden[:, 0, :]).all())
+    cls_net = RobertaClassifier.from_pretrained('data/pretrained_model', num_classes=6, embd_method='max')
+    print(cls_net)

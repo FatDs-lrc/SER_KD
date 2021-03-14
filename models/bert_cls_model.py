@@ -26,6 +26,7 @@ class BertClSModel(BaseModel):
         self.loss_names = ['CE']
         self.model_names = ['BC']
         self.pretrained_model = ['BC']
+        self.opt = opt
         if 'roberta' in opt.bert_type:
             # self.netBC = roberta_classifier(opt.output_dim, opt.bert_type)
             self.netBC = RobertaClassifier.from_pretrained(opt.bert_type, num_classes=opt.output_dim, embd_method=opt.embd_method)
@@ -86,3 +87,18 @@ class BertClSModel(BaseModel):
             self.netBC.module.save_pretrained(save_path)
         else:
             self.netBC.save_pretrained(save_path)
+
+    def load_networks(self, epoch):
+        """Load all the networks from the disk.
+
+        Parameters:
+            epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+        """
+        load_filename = '%s_net_%s.pth' % (epoch, "BC")
+        load_path = os.path.join(self.save_dir, load_filename)
+        if 'roberta' in self.opt.bert_type:
+            self.netBC = RobertaClassifier.from_pretrained(\
+                load_path, num_classes=self.opt.output_dim, embd_method=self.opt.embd_method)
+        else:
+            self.netBC = BertClassifier.from_pretrained(\
+                load_path, num_classes=self.opt.output_dim, embd_method=self.opt.embd_method)

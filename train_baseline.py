@@ -28,8 +28,8 @@ def eval(model, val_iter, is_save=False, phase='test'):
     total_pred = np.concatenate(total_pred)
     total_label = np.concatenate(total_label)
     acc = accuracy_score(total_label, total_pred)
-    uar = recall_score(total_label, total_pred, average='macro')
-    f1 = f1_score(total_label, total_pred, average='macro')
+    uar = recall_score(total_label, total_pred, average='weighted')
+    f1 = f1_score(total_label, total_pred, average='weighted')
     cm = confusion_matrix(total_label, total_pred)
     model.train()
     
