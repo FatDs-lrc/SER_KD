@@ -1,37 +1,47 @@
 import os.path as osp
 import torch
-import h5py
 import numpy as np
 import json
 from torch.utils.data import Dataset
-from data.base_dataset import BaseDataset
+from base_dataset import BaseDataset
 from torch.nn.utils.rnn import pad_sequence
 
+import lmdb
+import msgpack
+import msgpack_numpy
+msgpack_numpy.patch()
+
 class MovieDataset(BaseDataset):
+    @staticmethod
+    def modify_commandline_options(parser, isTrain=None):
+        parser.add_argument('--data_type', type=str, default='name', help='which cross validation set')
+        return parser
 
     def __init__(self, opt, set_name):
         ''' movie_dataset reader set_name in ['trn', 'val']
         '''
         super().__init__(opt)
-        data_root = "/data7/lrc/movie_dataset/filtered_data"
-        name_dir = osp.join(data_root, 'name')
-        self.hidden_state_layers = 13
-        self.roberta_ft_dir = osp.join(data_root, 'roberta')
-        self.comparE_ft_dir = osp.join(data_root, 'comparE')
+        
+        data_root = "/data4/lrc/movie_dataset"
+        name_dir = osp.join(data_root, 'filtered_data', opt.data_type)
+        self.hidden_state_layers = [6, 8, 10, 12]
+        self.comparE_env = lmdb.open(osp.join(data_root, f"comparE_{set_name}.db"),\
+             readonly=True, create=False, readahead=False)
+        self.roberta_env = lmdb.open(osp.join(data_root, f"roberta_{set_name}.db"),\
+             readonly=True, create=False, readahead=False)
+        self.comparE_txn = self.comparE_env.begin()
+        self.roberta_txn = self.roberta_env.begin()
         self.int2name = json.load(open(osp.join(name_dir, set_name + '.json')))
-        self.movie_names = set([x.split('+')[0] for x in self.int2name])
         self.manual_collate_fn = True
         print(f"EmoMovie dataset {set_name} created with total length: {len(self)}")
     
     def __getitem__(self, index):
         name = self.int2name[index]
-        roberta_file = osp.join(self.roberta_ft_dir, name.replace('+', '/') + '.npz')
-        comparE_file = osp.join(self.comparE_ft_dir, name.replace('+', '/') + '.npz')
-        roberta_data = np.load(roberta_file)
-        comparE_data = np.load(comparE_file)
-        logits = roberta_data['logits']
-        hidden_states = roberta_data['hidden_states']
-        comparE = comparE_data['comparE']
+        comparE_dump = msgpack.loads(self.comparE_txn.get(name.encode('utf8')), raw=False)
+        roberta_dump = msgpack.loads(self.roberta_txn.get(name.encode('utf8')), raw=False)
+        logits = roberta_dump['logits'].copy()
+        hidden_states = roberta_dump['hidden_states'].copy()[self.hidden_state_layers]
+        comparE = comparE_dump['comparE'].copy()
         return {
             'int2name': name,
             'logits': torch.from_numpy(logits).float(),
@@ -53,7 +63,7 @@ class MovieDataset(BaseDataset):
         len_hidden_states = torch.tensor([len(sample['hidden_states'][0]) for sample in batch]).long()
         len_comparE = torch.tensor([len(sample['comparE']) for sample in batch]).long()
         all_layer = []
-        for layer in range(self.hidden_state_layers):
+        for layer in range(len(self.hidden_state_layers)):
             layer_hidden = [x[layer] for x in hidden_states]
             layer_hidden = pad_sequence(layer_hidden, batch_first=True, padding_value=0)
             all_layer.append(layer_hidden.unsqueeze(1))
@@ -65,7 +75,7 @@ class MovieDataset(BaseDataset):
         return {
             'int2name': int2name,
             'logits': logits,
-            # 'hidden_states': hidden_states,
+            'hidden_states': hidden_states,
             'comparE': comparE,
             'len_hidden_states': len_hidden_states,
             'len_comparE': len_comparE,
@@ -74,20 +84,20 @@ class MovieDataset(BaseDataset):
 
 if __name__ == '__main__':
     class test:
-        cvNo = 1
-        ft_type = 'comparE_downsampled'
+        data_type = "sampled"
     
     opt = test()
     a = MovieDataset(opt, 'trn')
-    # data0 = a[0]
-    # data1 = a[1]
-    # data2 = a[2]
-    # print('-----------------data0-----------------------')
-    # for k, v in data0.items():
-    #     if k not in ['int2name', 'len_hidden_states', 'len_hidden_states']:
-    #         print(k, v.shape)
-    #     else:
-    #         print(k, v)
+    data0 = a[0]
+    data1 = a[1]
+    data2 = a[2]
+    print('-----------------data0-----------------------')
+    for k, v in data0.items():
+        if k not in ['int2name', 'len_hidden_states', 'len_hidden_states']:
+            print(k, v.shape)
+        else:
+            print(k, v)
+    
     # print('-----------------data1-----------------------')
     # for k, v in data1.items():
     #     if k not in ['int2name', 'len_hidden_states', 'len_hidden_states']:

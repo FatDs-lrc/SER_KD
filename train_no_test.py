@@ -3,6 +3,7 @@ import time
 import numpy as np
 from opts.train_opts import TrainOptions
 from data import create_dataset_with_args
+from data.base_dataset import PrefetchLoader
 from models import create_model
 from utils.logger import get_logger, ResultRecorder
 from tqdm import tqdm
@@ -29,8 +30,8 @@ def eval(model, val_iter, is_save=False, phase='test'):
     total_pred = np.concatenate(total_pred)
     total_label = np.concatenate(total_label)
     acc = accuracy_score(total_label, total_pred)
-    uar = recall_score(total_label, total_pred, average='macro')
-    f1 = f1_score(total_label, total_pred, average='macro')
+    uar = recall_score(total_label, total_pred, average='weighted')
+    f1 = f1_score(total_label, total_pred, average='weighted')
     cm = confusion_matrix(total_label, total_pred)
     model.train()
     
@@ -61,6 +62,9 @@ if __name__ == '__main__':
         dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'val'])   
     if opt.no_val:
         dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'tst'])   
+
+    # dataset = PrefetchLoader(dataset)
+    # val_dataset = PrefetchLoader(dataset)
     dataset_size = len(dataset)    # get the number of images in the dataset.
     logger.info('The number of training samples = %d' % dataset_size)
     model = create_model(opt)      # create a model given opt.model and other options
@@ -75,11 +79,11 @@ if __name__ == '__main__':
         model.set_learning_rate(opt.warmup_lr, logger)
         for epoch in range(opt.warmup_epoch):
             for i, data in tqdm(                # inner loop within one epoch
-                    enumerate(dataset), total=len(dataset)//opt.batch_size
+                    enumerate(dataset), total=len(dataset)//opt.batch_size + int(len(dataset)%opt.batch_size>0)
                 ):  
                 model.set_input(data)           # unpack data from dataset and apply preprocessing
                 model.optimize_parameters(epoch)   # calculate loss functions, get gradients, update network weights
-            logger.info('Warmup [{} / {}]'.format(epoch, opt.warmup_epoch))
+            logger.info('Warmup [{} / {}]'.format(epoch, opt.warmup_epoch-1))
         model.set_learning_rate(opt.lr, logger)
     
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
@@ -100,10 +104,10 @@ if __name__ == '__main__':
                 logger.info('Cur epoch {}'.format(epoch) + ' loss ' + 
                         ' '.join(map(lambda x:'{}:{{{}:.4f}}'.format(x, x), model.loss_names)).format(**losses))
 
-            if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
-                logger.info('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
-                save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
-                model.save_networks(save_suffix)
+            # if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
+            #     logger.info('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
+            #     save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
+            #     model.save_networks(save_suffix)
 
             iter_data_time = time.time()
         if epoch % opt.save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs

@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def get_positional_table(d_pos_vec, n_position=1024):
     position_enc = np.array([
         [pos / np.power(10000, 2*i/d_pos_vec) for i in range(d_pos_vec)]
@@ -108,8 +109,8 @@ class TransformerEncoder(nn.Module):
             )
         encoder_layer = nn.TransformerEncoderLayer(d_model=_inp, nhead=nhead, dim_feedforward=dim_feedforward)
         self.encoder = _TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers)
-        self.linear = nn.Linear(_inp, _inp)
-        self.tanh = nn.Tanh()
+        # self.linear = nn.Linear(_inp, _inp)
+        # self.tanh = nn.Tanh()
 
     def post_process(self, x):
         if self.embd_method == 'maxpool':
@@ -132,26 +133,112 @@ class TransformerEncoder(nn.Module):
         position_ids = torch.arange(seq_len, dtype=torch.long, device=x.device)
         position_ids = position_ids.unsqueeze(1).expand([seq_len, batch_size])
         position_embeddings = self.position_embeddings(position_ids)
-        x = x + position_embeddings
+        x = x + position_embeddings * 0.01
         out, hidden_states = self.encoder(x, mask, src_key_padding_mask)
         # switch back to batch first, inp.shape => [batch_size, seq_len, ft_dim]
         out = out.transpose(0, 1)
         out = self.post_process(out)
-        out = self.tanh(self.linear(out))
+        # out = self.tanh(self.linear(out))
         return out, hidden_states
-      
+
+
+class AlignNet(nn.Module):
+    def __init__(self, template_dim, align_ft_dim, num_heads=4):
+        super().__init__()
+        self.affine = nn.Sequential(
+            nn.Linear(align_ft_dim, template_dim),
+            nn.Tanh()
+        )
+        self.query_affine = nn.Linear(template_dim, template_dim)
+        self.template_dim = template_dim
+        self.num_heads = num_heads
+        self.dp = nn.Dropout(0.1)
+
+        # self.multihead_attn = \
+        #     nn.modules.activation.MultiheadAttention(template_dim, num_heads=num_heads, bias=False)
+    
+    def forward(self, template_ft, align_ft):
+        to_align = self.affine(align_ft)
+        scaling = float(self.template_dim) ** -0.5
+        q = self.query_affine(template_ft)
+        k = to_align
+        tgt_len, bsz, embed_dim = q.size()
+        assert embed_dim == self.template_dim
+        head_dim = embed_dim // self.num_heads
+        q = q * scaling
+        q = q.contiguous().view(tgt_len, bsz * self.num_heads, head_dim).transpose(0, 1)
+        k = k.contiguous().view(-1, bsz * self.num_heads, head_dim).transpose(0, 1)
+        attn_output_weights = torch.bmm(q, k.transpose(1, 2))
+        attn_output_weights = F.softmax(attn_output_weights, dim=-1)
+        attn_output_weights = self.dp(attn_output_weights)
+        attn_output = torch.bmm(attn_output_weights, k)
+        attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        # out, attn_weight = self.multihead_attn(template_ft, to_align, to_align)
+        return attn_output
+
+'''
+class TransformerEncoder(nn.Module):
+    def __init__(self, input_dim, num_layers, nhead, dim_feedforward=None, \
+                            affine=False, affine_dim=None, embd_method='maxpool'):
+        super().__init__()
+        self.affine = affine
+        assert embd_method in ['maxpool', 'meanpool', 'last']
+        self.embd_method = embd_method
+        if self.affine:
+            _inp = affine_dim
+            self.affine = nn.Linear(input_dim, affine_dim)
+        else:
+            _inp = input_dim
+        if dim_feedforward is None:
+            dim_feedforward = _inp
+        encoder_layer = nn.TransformerEncoderLayer(d_model=_inp, nhead=nhead, dim_feedforward=dim_feedforward)
+        self.encoder = nn.TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers)
+
+    def post_process(self, x):
+        if self.embd_method == 'maxpool':
+            x = x.transpose(1, 2)                               # out.shape => [batch_size, ft_dim, seq_len]      
+            embd = F.max_pool1d(x, x.size(2), x.size(2))        # out.shape => [batch_size, ft_dim, 1]   
+            embd = embd.squeeze()                               # out.shape => [batch_size, ft_dim]
+        elif self.embd_method == 'meanpool':
+            embd = torch.mean(x, dim=1)
+        elif self.embd_method == 'last':
+            embd = x[:, -1, :]
+        return embd
+
+    def forward(self, x, mask=None, src_key_padding_mask=None):
+        # switch batch to dim-1, inp.shape => [seq_len, batch_size, ft_dim]
+        x = x.transpose(0, 1)
+        if self.affine:
+            x = self.affine(x)
+        out = self.encoder(x, mask, src_key_padding_mask)
+        # switch back to batch first, inp.shape => [batch_size, seq_len, ft_dim]
+        out = out.transpose(0, 1)
+        out = self.post_process(out)
+        return out
+'''
 if __name__ == '__main__':
-    net = TransformerEncoder(256, 2, nhead=4, dim_feedforward=256)
-    inp = torch.rand(2, 75, 256)
-    out, hidden_states = net(inp)
+    # net = TransformerEncoder(256, 2, nhead=4, dim_feedforward=256)
+    # inp = torch.rand(2, 75, 256)
+    # out, hidden_states = net(inp)
+    # print(out.shape)
+    # print(len(hidden_states))
+    # for h in hidden_states:
+    #     print(h.size())
+    # num_params = 0
+    # for param in net.parameters():
+    #     num_params += param.numel()
+    # print('Total number of parameters : %.3f M' % (num_params / 1e6))
+
+    # 1. 确认是不是batch first
+    # 2. 确认一下初始化规则
+
+    L = torch.rand(20, 2, 768)
+    A = torch.rand(15, 2, 512)
+    attn = AlignNet(template_dim=768, align_ft_dim=512, num_heads=4)
+    out = attn(L, A)
     print(out.shape)
-    print(len(hidden_states))
-    for h in hidden_states:
-        print(h.size())
+    # attn = nn.modules.activation.MultiheadAttention(768, num_heads=4)
     num_params = 0
-    for param in net.parameters():
+    for param in attn.parameters():
         num_params += param.numel()
     print('Total number of parameters : %.3f M' % (num_params / 1e6))
-
-# 1. 确认是不是batch first
-# 2. 确认一下初始化规则

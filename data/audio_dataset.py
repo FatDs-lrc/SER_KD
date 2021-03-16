@@ -20,8 +20,8 @@ class AudioDataset(BaseDataset):
         # data_path = "/home/zzc/lrc/IEMOCAP_features_npy/feature/{}/{}/"
         # label_path = "/home/zzc/lrc/IEMOCAP_features_npy/target/{}/"
 
-        data_path = "/data6/lrc/IEMOCAP_features_npy/feature/{}/{}/"
-        label_path = "/data6/lrc/IEMOCAP_features_npy/target/{}/"
+        data_path = "/data4/lrc/IEMOCAP_features_npy/feature/{}/{}/"
+        label_path = "/data4/lrc/IEMOCAP_features_npy/target/{}/"
         self.acoustic_data = np.load(data_path.format(acoustic_ft_type, cvNo) + f"{set_name}.npy")
 
         # mask for text feature

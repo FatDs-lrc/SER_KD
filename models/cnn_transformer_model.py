@@ -5,7 +5,7 @@ import json
 import torch.nn.functional as F
 from models.base_model import BaseModel
 from models.networks.transformer import TransformerEncoder
-from models.networks.rcn import EncCNN1d, ResNetEncoder
+from models.networks.rcn import EncCNN1d, EncCNN1dThin
 from models.networks.fc import FcEncoder
 
 
@@ -35,7 +35,7 @@ class CnnTransformerModel(BaseModel):
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['CE']
         self.model_names = ['enc', 'rnn', 'C']
-        self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
+        self.netenc = EncCNN1dThin(opt.input_dim, opt.enc_channel)
         self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')] + [opt.output_dim]
         self.netC = FcEncoder(opt.enc_channel*2, cls_layers, dropout=0.3)

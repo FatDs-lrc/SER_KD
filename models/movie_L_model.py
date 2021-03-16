@@ -7,9 +7,9 @@ from models.base_model import BaseModel
 from models.networks.transformer import TransformerEncoder
 from models.networks.rcn import EncCNN1d
 from models.networks.fc import FcEncoder
-from models.networks.classifier import FcClassifier
+from models.networks.classifier import BertClassifier, FcClassifier
 
-class MovieModel(BaseModel):
+class MovieLModel(BaseModel):
     '''
     A: DNN
     V: denseface + LSTM + maxpool
@@ -32,7 +32,11 @@ class MovieModel(BaseModel):
         # optimizer
         parser.add_argument('--temperature', type=float, default=2.0, help='Teacher softmax temperature')
         parser.add_argument('--kd_weight', type=float, default=1.0, help='weight of KD loss')
-        parser.add_argument('--mse_weight', type=float, default=0.5, help='weight of KD loss')
+        parser.add_argument('--mse_weight1', type=float, default=0.3, help='weight of KD loss', help='layer -1')
+        parser.add_argument('--mse_weight2', type=float, default=0.2, help='weight of KD loss', help='layer -2')
+        parser.add_argument('--mse_weight3', type=float, default=0.1, help='weight of KD loss', help='layer -3')
+        parser.add_argument('--mse_weight4', type=float, default=0.1, help='weight of KD loss', help='layer -4')
+
         return parser
 
     def __init__(self, opt):
@@ -43,13 +47,18 @@ class MovieModel(BaseModel):
         super().__init__(opt)
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['KD'] # KD
-        self.model_names = ['enc', 'rnn', 'C']
+        self.model_names = ['enc', 'rnn', 'C', 'align1', 'align2', 'align3', 'align4']
         self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
         self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')]
         # self.netC = FcEncoder(opt.enc_channel*2, cls_layers, dropout=0.3)
         self.netC = FcClassifier(opt.enc_channel*2, cls_layers, opt.output_dim, dropout=0.3)
         self.nhead = opt.nhead
+
+        teacher_path = '/data4/lrc/movie_dataset/pretrained/bert_movie_model'
+        self.teacher = BertClassifier.from_pretrained(teacher_path).to(self.device)
+        self.teacher = self.teacher.eval()
+
         if self.isTrain:
             self.kd_weight = opt.kd_weight
             self.temperature = opt.temperature
@@ -96,6 +105,8 @@ class MovieModel(BaseModel):
         self.feat, self.A_hidden_states = self.netrnn(self.segments) # mask=self.attn_mask, src_key_padding_mask=self.key_mask)
         self.logits, _ = self.netC(self.feat)
         self.pred = F.softmax(self.logits, dim=-1)
+        if self.isTrain:
+            
         
     def backward(self):
         """Calculate the loss for back propagation"""

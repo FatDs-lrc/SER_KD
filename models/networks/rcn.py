@@ -6,7 +6,7 @@ class EncCNN1d(nn.Module):
     def __init__(self, input_dim=130, channel=128, dropout=0.3):
         super(EncCNN1d, self).__init__()
         self.feat_extractor = nn.Sequential(
-            nn.Conv1d(input_dim, channel, 10, stride=2, padding=4),
+            nn.Conv1d(input_dim, channel, 10, stride=4, padding=4),
             nn.BatchNorm1d(channel),
             nn.LeakyReLU(0.3, inplace=True),
             nn.Conv1d(channel, channel*2, 5, stride=2, padding=2),
@@ -16,6 +16,30 @@ class EncCNN1d(nn.Module):
             nn.BatchNorm1d(channel*4),
             nn.LeakyReLU(0.3, inplace=True),
             nn.Conv1d(channel*4, channel*2, 3, stride=1, padding=1),
+        )
+        self.dp = nn.Dropout(dropout)
+
+    def forward(self, wav_data):
+        # wav_data of shape [bs, seq_len, input_dim]
+        out = self.feat_extractor(wav_data.transpose(1, 2))
+        out = out.transpose(1, 2)       # to (batch x seq x dim)
+        out = self.dp(out)
+        return out  
+
+class EncCNN1dThin(nn.Module):
+    def __init__(self, input_dim=130, channel=128, dropout=0.3):
+        super(EncCNN1dThin, self).__init__()
+        self.feat_extractor = nn.Sequential(
+            nn.Conv1d(input_dim, channel, 10, stride=4, padding=4),
+            nn.BatchNorm1d(channel),
+            nn.LeakyReLU(0.3, inplace=True),
+            nn.Conv1d(channel, channel*2, 5, stride=2, padding=2),
+            nn.BatchNorm1d(channel*2),
+            nn.LeakyReLU(0.3, inplace=True),
+            nn.Conv1d(channel*2, channel*2, 3, stride=2, padding=1),
+            # nn.BatchNorm1d(channel*4),
+            # nn.LeakyReLU(0.3, inplace=True),
+            # nn.Conv1d(channel*4, channel*2, 3, stride=1, padding=1),
         )
         self.dp = nn.Dropout(dropout)
 
@@ -117,7 +141,7 @@ if __name__ == '__main__':
     # print(out4.shape)
     
     x = torch.rand(2, 600, 130)
-    net = ResNetEncoder(channels=64)
+    net = EncCNN1d(130, 256)
     out = net(x)
     print(net)
     print(out.size())

@@ -6,3 +6,4 @@ logs
 today_tasks/auto/*
 data/config/*
 data/pretrained_model
+core*
