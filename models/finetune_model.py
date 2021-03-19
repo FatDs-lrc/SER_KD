@@ -4,12 +4,12 @@ import os
 import json
 import torch.nn.functional as F
 from models.base_model import BaseModel
-from models.networks.rnn import LSTMEncoder
-from models.networks.wavenc import WavEncoder
+from models.networks.transformer import TransformerEncoder
+from models.networks.rcn import EncCNN1d
 from models.networks.fc import FcEncoder
 
 
-class CNN1dDNNmodel(BaseModel):
+class FinetuneModel(BaseModel):
     '''
     A: DNN
     V: denseface + LSTM + maxpool
@@ -17,13 +17,15 @@ class CNN1dDNNmodel(BaseModel):
     '''
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
-        parser.add_argument('--enc_hidden_size', type=int, default=16)
+        parser.add_argument('--input_dim', type=int, default=130)
+        parser.add_argument('--enc_channel', type=int, default=128)
         parser.add_argument('--output_dim', type=int, default=4)
         parser.add_argument('--cls_layers', type=str, default='128,128')
-        parser.add_argument('--dnn_layers', type=str, default='128,128')
-        parser.add_argument('--hidden_size', type=int, default=128)
-        parser.add_argument('--embd_method', type=str, default='maxpool')
-        parser.add_argument('--bidirection', action='store_true')
+        parser.add_argument('--num_layers', type=int, default=2)
+        parser.add_argument('--nhead', type=int, default=4)
+        parser.add_argument('--dim_feedforward', type=int, default=256)
+        parser.add_argument('--pretrained_dir', type=str)
+        parser.add_argument('--pretrained_epoch', type=int)
         return parser
 
     def __init__(self, opt):
@@ -34,15 +36,21 @@ class CNN1dDNNmodel(BaseModel):
         super().__init__(opt)
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['CE']
-        self.model_names = ['enc', 'rnn', 'dnn', 'C']
-        self.netenc = WavEncoder(opt.enc_hidden_size)
-        dnn_layers = [int(x) for x in opt.dnn_layers.split(',')]
-        self.netdnn = FcEncoder(opt.enc_hidden_size*2, dnn_layers, dropout=0.3)
-        self.netrnn = LSTMEncoder(dnn_layers[-1], opt.hidden_size, embd_method='maxpool', bidirection=opt.bidirection) # 
+        self.pretrained_model = ['enc', 'rnn']
+        self.model_names = ['enc', 'rnn', 'C']
+        self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
+        self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')] + [opt.output_dim]
-        expand = 2 if opt.bidirection else 1
-        self.netC = FcEncoder(opt.hidden_size * expand, cls_layers, dropout=0.3)
-            
+        self.netC = FcEncoder(opt.enc_channel*2, cls_layers, dropout=0.3)
+        
+        # load from pretrained
+        enc_path = os.path.join(opt.pretrained_dir, '0', f'{opt.pretrained_epoch}_net_enc.pth')
+        print('[LOAD FROM PRETRAINED] netenc weight Loaded from', enc_path)
+        self.netenc.load_state_dict(torch.load(enc_path))
+        rnn_path = os.path.join(opt.pretrained_dir, '0', f'{opt.pretrained_epoch}_net_rnn.pth')
+        print('[LOAD FROM PRETRAINED] netrnn weight Loaded from', rnn_path)
+        self.netrnn.load_state_dict(torch.load(rnn_path))
+
         if self.isTrain:
             self.criterion_ce = torch.nn.CrossEntropyLoss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
@@ -62,15 +70,14 @@ class CNN1dDNNmodel(BaseModel):
         Parameters:
             input (dict): include the data itself and its metadata information.
         """
-        self.signal = input['signal'].to(self.device)
+        self.signal = input['A_feat'].to(self.device)
         self.label = input['label'].to(self.device)
         self.input = input
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.segments = self.netenc(self.signal)
-        self.mid = self.netdnn(self.segments)
-        self.feat = self.netrnn(self.mid)
+        self.feat, _ = self.netrnn(self.segments)
         self.logits = self.netC(self.feat)
         self.pred = F.softmax(self.logits, dim=-1)
         

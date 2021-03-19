@@ -108,7 +108,7 @@ class TransformerEncoder(nn.Module):
                 freeze=True
             )
         encoder_layer = nn.TransformerEncoderLayer(d_model=_inp, nhead=nhead, dim_feedforward=dim_feedforward)
-        self.encoder = _TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers)
+        self.encoder = _TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers) # => 和 nn.TransformerEncoder没区别，多返回一个hidden states
         # self.linear = nn.Linear(_inp, _inp)
         # self.tanh = nn.Tanh()
 
@@ -158,6 +158,10 @@ class AlignNet(nn.Module):
         #     nn.modules.activation.MultiheadAttention(template_dim, num_heads=num_heads, bias=False)
     
     def forward(self, template_ft, align_ft):
+        template_ft = template_ft.transpose(0, 1)
+        # print(template_ft.shape)
+        # print(align_ft.shape)
+        # input()
         to_align = self.affine(align_ft)
         scaling = float(self.template_dim) ** -0.5
         q = self.query_affine(template_ft)
@@ -174,7 +178,7 @@ class AlignNet(nn.Module):
         attn_output = torch.bmm(attn_output_weights, k)
         attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         # out, attn_weight = self.multihead_attn(template_ft, to_align, to_align)
-        return attn_output
+        return attn_output.transpose(0, 1)
 
 '''
 class TransformerEncoder(nn.Module):

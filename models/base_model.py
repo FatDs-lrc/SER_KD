@@ -86,6 +86,7 @@ class BaseModel(ABC):
                 net = getattr(self, 'net' + name)
                 net = tools.init_net(net, opt.gpu_ids)
                 if name not in self.pretrained_model:
+                    print(f'net [{name}] weight randomly init')
                     tools.init_weights(net, opt.init_type, opt.init_gain, )
                 setattr(self, 'net' + name, net)
         else:
@@ -203,6 +204,18 @@ class BaseModel(ABC):
                 if hasattr(state_dict, '_metadata'):
                     del state_dict._metadata
 
+                net.load_state_dict(state_dict)
+    
+    def load_from(self, ckpt_dir, epoch):
+        for name in self.model_names:
+            if name not in self.pretrained_model:
+                load_filename = '%s_net_%s.pth' % (epoch, name)
+                load_path = os.path.join(ckpt_dir, load_filename)
+                net = getattr(self, 'net' + name)
+                if isinstance(net, torch.nn.DataParallel):
+                    net = net.module
+                print('[RESUME] loading the model from %s' % load_path)
+                state_dict = torch.load(load_path, map_location=self.device)
                 net.load_state_dict(state_dict)
     
     def load_networks_cv(self, folder_path):

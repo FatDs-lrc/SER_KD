@@ -217,3 +217,15 @@ transformer速度很快，比LSTM快很多
 
 - 修改将采样为 1*1 卷积, 并添加bn，relu
     效果不太行
+
+
+
+
+只用KD - 0, 0.3, 0.5 ---
+KD + 4MSE - 0, 0.3, 0.5, 0.7 ---
+KD + 2MSE - 0, 0.3, 0.5, 0.7
+KD + last VS KD + skip （4MSE）
+
+no KD + 4 MSE
+在IEMOCAP上测试
+teacher student match的程度 打印一个confusion matrix

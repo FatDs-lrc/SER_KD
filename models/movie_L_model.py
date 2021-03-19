@@ -1,12 +1,11 @@
 
 import torch
 import os
-import json
+import torch.nn as nn
 import torch.nn.functional as F
 from models.base_model import BaseModel
-from models.networks.transformer import TransformerEncoder
+from models.networks.transformer import TransformerEncoder, AlignNet
 from models.networks.rcn import EncCNN1d
-from models.networks.fc import FcEncoder
 from models.networks.classifier import BertClassifier, FcClassifier
 
 class MovieLModel(BaseModel):
@@ -32,11 +31,14 @@ class MovieLModel(BaseModel):
         # optimizer
         parser.add_argument('--temperature', type=float, default=2.0, help='Teacher softmax temperature')
         parser.add_argument('--kd_weight', type=float, default=1.0, help='weight of KD loss')
-        parser.add_argument('--mse_weight1', type=float, default=0.3, help='weight of KD loss', help='layer -1')
-        parser.add_argument('--mse_weight2', type=float, default=0.2, help='weight of KD loss', help='layer -2')
-        parser.add_argument('--mse_weight3', type=float, default=0.1, help='weight of KD loss', help='layer -3')
-        parser.add_argument('--mse_weight4', type=float, default=0.1, help='weight of KD loss', help='layer -4')
-
+        parser.add_argument('--mse_weight1', type=float, default=0.3, help='layer -1')
+        parser.add_argument('--mse_weight2', type=float, default=0.2, help='layer -2')
+        parser.add_argument('--mse_weight3', type=float, default=0.1, help='layer -3')
+        parser.add_argument('--mse_weight4', type=float, default=0.1, help='layer -4')
+        # resume    
+        parser.add_argument('--resume', action='store_true')
+        parser.add_argument('--resume_dir', type=str, default="", help='resume epoch')
+        parser.add_argument('--resume_epoch', type=int, default=-1, help='resume epoch')
         return parser
 
     def __init__(self, opt):
@@ -45,9 +47,11 @@ class MovieLModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         super().__init__(opt)
+        
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
-        self.loss_names = ['KD'] # KD
-        self.model_names = ['enc', 'rnn', 'C', 'align1', 'align2', 'align3', 'align4']
+        self.loss_names = ['KD', 'MSE1', 'MSE2', 'MSE3', 'MSE4'] # KD
+        self.model_names = ['enc', 'rnn', 'C', '_teacher', 'align1', 'align2', 'align3', 'align4']
+        self.pretrained_model = ['_teacher']
         self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
         self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
         cls_layers = [int(x) for x in opt.cls_layers.split(',')]
@@ -55,14 +59,26 @@ class MovieLModel(BaseModel):
         self.netC = FcClassifier(opt.enc_channel*2, cls_layers, opt.output_dim, dropout=0.3)
         self.nhead = opt.nhead
 
+        self.netalign1 = AlignNet(768, opt.enc_channel*2, num_heads=4)
+        self.netalign2 = AlignNet(768, opt.enc_channel*2, num_heads=4)
+        self.netalign3 = AlignNet(768, opt.enc_channel*2, num_heads=4)
+        self.netalign4 = AlignNet(768, opt.enc_channel*2, num_heads=4)
+        self.align_layers = [1, 3, 5, 7]
+
         teacher_path = '/data4/lrc/movie_dataset/pretrained/bert_movie_model'
-        self.teacher = BertClassifier.from_pretrained(teacher_path).to(self.device)
-        self.teacher = self.teacher.eval()
+        self.net_teacher = BertClassifier.from_pretrained(
+            teacher_path, num_classes=5, embd_method='max')
+        self.net_teacher = self.net_teacher.eval()
 
         if self.isTrain:
             self.kd_weight = opt.kd_weight
+            self.mse_weight1 = opt.mse_weight1
+            self.mse_weight2 = opt.mse_weight2
+            self.mse_weight3 = opt.mse_weight3
+            self.mse_weight4 = opt.mse_weight4
+
             self.temperature = opt.temperature
-            self.criterion_ce = torch.nn.CrossEntropyLoss()
+            self.criterion_mse = torch.nn.MSELoss()
             self.criterion_kd = torch.nn.KLDivLoss(reduction='batchmean')
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             paremeters = [{'params': getattr(self, 'net'+net).parameters()} for net in self.model_names]
@@ -85,6 +101,8 @@ class MovieLModel(BaseModel):
         self.comparE = input['comparE'].to(self.device)
         self.len_comparE = input['len_comparE'].to(self.device)
         self.pesudo_label = input['label'].to(self.device)
+        self.input_ids = input['input_ids']
+        self.mask = input['mask']
         # self.hidden_states = input['hidden_states'].to(self.device)
         # self.len_hidden_states = input['len_hidden_states'].to(self.device)
 
@@ -102,19 +120,29 @@ class MovieLModel(BaseModel):
         # self.key_mask = self.key_mask.bool()
         
         self.segments = self.netenc(self.comparE)
-        self.feat, self.A_hidden_states = self.netrnn(self.segments) # mask=self.attn_mask, src_key_padding_mask=self.key_mask)
+        self.feat, self.A_hidden = self.netrnn(self.segments) # mask=self.attn_mask, src_key_padding_mask=self.key_mask)
         self.logits, _ = self.netC(self.feat)
         self.pred = F.softmax(self.logits, dim=-1)
         if self.isTrain:
-            
+            self.L_pred = F.softmax(self.L_logits / self.temperature, dim=-1)
+            with torch.no_grad():
+                _, self.L_hidden = self.net_teacher(self.input_ids, self.mask)
+                self.L_hidden = [self.L_hidden[i] for i in self.align_layers]
+            self.A_log_pred = F.log_softmax(self.logits, dim=-1)
+            self.A_hidden = self.A_hidden[-4:]
+            self.align_out1 = self.netalign1(self.L_hidden[0], self.A_hidden[0])
+            self.align_out2 = self.netalign1(self.L_hidden[1], self.A_hidden[1])
+            self.align_out3 = self.netalign1(self.L_hidden[2], self.A_hidden[2])
+            self.align_out4 = self.netalign1(self.L_hidden[3], self.A_hidden[3])
         
     def backward(self):
         """Calculate the loss for back propagation"""
-        self.L_pred = F.softmax(self.L_logits / self.temperature, dim=-1)
-        self.A_log_pred = F.log_softmax(self.logits, dim=-1)
-        self.loss_CE = self.criterion_ce(self.logits, self.pesudo_label)
         self.loss_KD = self.criterion_kd(self.A_log_pred, self.L_pred) * self.kd_weight
-        self.total_loss = self.loss_KD # loss_CE
+        self.loss_MSE1 = self.criterion_mse(self.align_out1, self.L_hidden[0]) * self.mse_weight1
+        self.loss_MSE2 = self.criterion_mse(self.align_out2, self.L_hidden[1]) * self.mse_weight2
+        self.loss_MSE3 = self.criterion_mse(self.align_out3, self.L_hidden[2]) * self.mse_weight3
+        self.loss_MSE4 = self.criterion_mse(self.align_out4, self.L_hidden[3]) * self.mse_weight4
+        self.total_loss = self.loss_KD + self.loss_MSE1 + self.loss_MSE2 + self.loss_MSE3 + self.loss_MSE4
         self.total_loss.backward()
         for model in self.model_names:
             torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 5.0) # 0.1

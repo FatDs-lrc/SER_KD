@@ -58,24 +58,23 @@ if __name__ == '__main__':
     result_recorder = ResultRecorder(os.path.join(opt.log_dir, opt.name, 'result.tsv'), total_cv=10) # init result recoreder
     suffix = '_'.join([opt.model, opt.dataset_mode])    # get logger suffix
     logger = get_logger(logger_path, suffix)            # get logger 
-    if opt.no_test:
-        dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'val'])   
-    if opt.no_val:
-        dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'tst'])   
-
+    dataset, val_dataset = create_dataset_with_args(opt, set_name=['trn', 'val'])     
     # dataset = PrefetchLoader(dataset)
     # val_dataset = PrefetchLoader(dataset)
     dataset_size = len(dataset)    # get the number of images in the dataset.
     logger.info('The number of training samples = %d' % dataset_size)
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
+    if opt.resume:
+        model.load_from(opt.resume_dir, opt.resume_epoch)
+    
     total_iters = 0                # the total number of training iterations
     best_eval_uar = 0              # record the best eval UAR
     best_epoch_acc, best_epoch_f1 = 0, 0
     best_eval_epoch = -1           # record the best eval epoch
 
     # warm-up
-    if opt.warmup:
+    if not opt.resume and opt.warmup:
         model.set_learning_rate(opt.warmup_lr, logger)
         for epoch in range(opt.warmup_epoch):
             for i, data in tqdm(                # inner loop within one epoch
@@ -119,9 +118,10 @@ if __name__ == '__main__':
         model.update_learning_rate(logger)                     # update learning rates at the end of every epoch.
 
         # eval trn set
-        acc, uar, f1, cm = eval(model, dataset)
-        logger.info('Trn result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
-        logger.info('\n{}'.format(cm))
+        if epoch % 4 == 0:
+            acc, uar, f1, cm = eval(model, dataset)
+            logger.info('Trn result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
+            logger.info('\n{}'.format(cm))
 
         # eval val set
         acc, uar, f1, cm = eval(model, val_dataset)
@@ -141,4 +141,4 @@ if __name__ == '__main__':
         'uar': best_eval_uar,
         'f1': best_epoch_f1
     }, cvNo=opt.cvNo)
-    clean_chekpoints(opt.name + '/' + str(opt.cvNo), best_eval_epoch)
+    # clean_chekpoints(opt.name + '/' + str(opt.cvNo), best_eval_epoch)

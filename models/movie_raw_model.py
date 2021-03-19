@@ -6,10 +6,9 @@ import torch.nn.functional as F
 from models.base_model import BaseModel
 from models.networks.transformer import TransformerEncoder
 from models.networks.rcn import EncCNN1d
-from models.networks.fc import FcEncoder
 from models.networks.classifier import FcClassifier
 
-class MovieModel(BaseModel):
+class MovieRawModel(BaseModel):
     '''
     A: DNN
     V: denseface + LSTM + maxpool
@@ -33,6 +32,10 @@ class MovieModel(BaseModel):
         parser.add_argument('--temperature', type=float, default=2.0, help='Teacher softmax temperature')
         parser.add_argument('--kd_weight', type=float, default=1.0, help='weight of KD loss')
         parser.add_argument('--mse_weight', type=float, default=0.5, help='weight of KD loss')
+        # resume
+        parser.add_argument('--resume', action='store_true')
+        parser.add_argument('--resume_dir', type=str, default="", help='resume epoch')
+        parser.add_argument('--resume_epoch', type=int, default=-1, help='resume epoch')
         return parser
 
     def __init__(self, opt):
