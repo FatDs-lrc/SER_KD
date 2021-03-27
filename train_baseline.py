@@ -1,6 +1,7 @@
 import os
 import time
 import numpy as np
+from tqdm import tqdm
 from opts.train_opts import TrainOptions
 from data import create_dataset_with_args
 from models import create_model
@@ -25,11 +26,13 @@ def eval(model, val_iter, is_save=False, phase='test'):
         total_label.append(label)
     
     # calculate metrics
+    # average_type = 'weighted' if phase in ['tst', 'test'] else 'macro'
+    average_type = 'weighted'
     total_pred = np.concatenate(total_pred)
     total_label = np.concatenate(total_label)
     acc = accuracy_score(total_label, total_pred)
-    uar = recall_score(total_label, total_pred, average='macro')
-    f1 = f1_score(total_label, total_pred, average='macro')
+    uar = recall_score(total_label, total_pred, average=average_type)
+    f1 = f1_score(total_label, total_pred, average=average_type)
     cm = confusion_matrix(total_label, total_pred)
     model.train()
     
@@ -62,16 +65,21 @@ if __name__ == '__main__':
     logger.info('The number of training samples = %d' % dataset_size)
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
+    if opt.resume:
+        model.load_from(opt.resume_dir, opt.resume_epoch)
+    
     total_iters = 0                # the total number of training iterations
     best_eval_uar = 0              # record the best eval UAR
     best_epoch_acc, best_epoch_f1 = 0, 0
     best_eval_epoch = -1           # record the best eval epoch
 
     # warm-up
-    if opt.warmup:
+    if not opt.resume and opt.warmup:
         model.set_learning_rate(opt.warmup_lr, logger)
         for epoch in range(opt.warmup_epoch):
-            for i, data in enumerate(dataset):  # inner loop within one epoch
+            for i, data in tqdm(                # inner loop within one epoch
+                    enumerate(dataset), total=len(dataset)//opt.batch_size + int(len(dataset)%opt.batch_size>0)
+                ):  
                 model.set_input(data)           # unpack data from dataset and apply preprocessing
                 model.optimize_parameters(epoch)   # calculate loss functions, get gradients, update network weights
             logger.info('Warmup [{} / {}]'.format(epoch, opt.warmup_epoch))
@@ -110,19 +118,20 @@ if __name__ == '__main__':
         model.update_learning_rate(logger)                     # update learning rates at the end of every epoch.
 
         # eval trn set
-        acc, uar, f1, cm = eval(model, dataset)
-        logger.info('Trn result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
-        logger.info('\n{}'.format(cm))
+        if epoch % 5 == 0:
+            acc, uar, f1, cm = eval(model, dataset, phase='trn')
+            logger.info('Trn result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
+            logger.info('\n{}'.format(cm))
 
         # eval val set
-        acc, uar, f1, cm = eval(model, val_dataset)
+        acc, uar, f1, cm = eval(model, val_dataset, phase='val')
         logger.info('Val result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
         logger.info('\n{}'.format(cm))
 
         # eval tst set
-        # acc, uar, f1, cm = eval(model, tst_dataset)
-        # logger.info('Tst result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
-        # logger.info('\n{}'.format(cm))
+        _acc, _uar, _f1, cm = eval(model, tst_dataset, phase='tst')
+        logger.info('Tst result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, _acc, _uar, _f1))
+        logger.info('\n{}'.format(cm))
         
         if uar > best_eval_uar:
             best_eval_epoch = epoch
@@ -146,4 +155,4 @@ if __name__ == '__main__':
         'f1': f1
     }, cvNo=opt.cvNo)
     
-    clean_chekpoints(opt.name + '/' + str(opt.cvNo), best_eval_epoch)
+    # clean_chekpoints(opt.name + '/' + str(opt.cvNo), best_eval_epoch)

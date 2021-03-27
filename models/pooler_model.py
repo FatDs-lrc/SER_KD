@@ -4,11 +4,11 @@ import os
 import torch.nn as nn
 import torch.nn.functional as F
 from models.base_model import BaseModel
-from models.networks.transformer import TransformerEncoder, AlignNet
+from models.networks.transformer import TransformerEncoder, AlignNet, MeanPooler
 from models.networks.rcn import EncCNN1d
 from models.networks.classifier import BertClassifier, FcClassifier
 
-class MovieLModel(BaseModel):
+class PoolerModel(BaseModel):
     '''
     A: DNN
     V: denseface + LSTM + maxpool
@@ -31,10 +31,8 @@ class MovieLModel(BaseModel):
         # optimizer
         parser.add_argument('--temperature', type=float, default=2.0, help='Teacher softmax temperature')
         parser.add_argument('--kd_weight', type=float, default=1.0, help='weight of KD loss')
-        parser.add_argument('--mse_weight1', type=float, default=0.3, help='layer -1')
-        parser.add_argument('--mse_weight2', type=float, default=0.2, help='layer -2')
-        parser.add_argument('--mse_weight3', type=float, default=0.1, help='layer -3')
-        parser.add_argument('--mse_weight4', type=float, default=0.1, help='layer -4')
+        parser.add_argument('--word_weight', type=str, default='0.1,0.1,0.2,0.3', help='weight of KD loss')
+        parser.add_argument('--utt_weight', type=str, default='0.1,0.1,0.2,0.3', help='weight of KD loss')
         # resume    
         parser.add_argument('--resume', action='store_true')
         parser.add_argument('--resume_dir', type=str, default="", help='resume epoch')
@@ -49,8 +47,8 @@ class MovieLModel(BaseModel):
         super().__init__(opt)
         
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
-        self.loss_names = ['KD', 'MSE1', 'MSE2', 'MSE3', 'MSE4'] # KD
-        self.model_names = ['enc', 'rnn', 'C', '_teacher', 'align1', 'align2', 'align3', 'align4']
+        self.loss_names = ['KD'] # KD
+        self.model_names = ['enc', 'rnn', 'C', '_teacher']
         self.pretrained_model = ['_teacher']
         self.netenc = EncCNN1d(opt.input_dim, opt.enc_channel)
         self.netrnn = TransformerEncoder(opt.enc_channel*2, opt.num_layers, opt.nhead, opt.dim_feedforward)
@@ -59,11 +57,20 @@ class MovieLModel(BaseModel):
         self.netC = FcClassifier(opt.enc_channel*2, cls_layers, opt.output_dim, dropout=0.3)
         self.nhead = opt.nhead
 
-        self.netalign1 = AlignNet(768, opt.enc_channel*2, num_heads=4)
-        self.netalign2 = AlignNet(768, opt.enc_channel*2, num_heads=4)
-        self.netalign3 = AlignNet(768, opt.enc_channel*2, num_heads=4)
-        self.netalign4 = AlignNet(768, opt.enc_channel*2, num_heads=4)
         self.align_layers = [7, 8, 9, 11]
+        for i in range(len(self.align_layers)):
+            net = AlignNet(768, opt.enc_channel*2, num_heads=4)
+            setattr(self, f'netalign{i}', net)
+            self.model_names.append(f'align{i}')
+        
+        for i in range(len(self.align_layers)):
+            net = MeanPooler(768, opt.enc_channel*2)
+            setattr(self, f'netpooler{i}', net)
+            self.model_names.append(f'pooler{i}')
+
+        for i in range(len(self.align_layers)):
+            self.loss_names.append(f'utt{i}')
+            self.loss_names.append(f'word{i}')
 
         teacher_path = '/data4/lrc/movie_dataset/pretrained/bert_movie_model'
         self.net_teacher = BertClassifier.from_pretrained(
@@ -72,10 +79,12 @@ class MovieLModel(BaseModel):
 
         if self.isTrain:
             self.kd_weight = opt.kd_weight
-            self.mse_weight1 = opt.mse_weight1
-            self.mse_weight2 = opt.mse_weight2
-            self.mse_weight3 = opt.mse_weight3
-            self.mse_weight4 = opt.mse_weight4
+            # self.mse_weight1 = opt.mse_weight1
+            # self.mse_weight2 = opt.mse_weight2
+            # self.mse_weight3 = opt.mse_weight3
+            # self.mse_weight4 = opt.mse_weight4
+            self.word_weight = [float(x) for x in opt.word_weight.split(',')]
+            self.utt_weight = [float(x) for x in opt.word_weight.split(',')]
 
             self.temperature = opt.temperature
             self.criterion_mse = torch.nn.MSELoss()
@@ -108,16 +117,6 @@ class MovieLModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        # batch_size, seq_len, _ = self.comparE.size()
-        # mask_seq_len = seq_len // 8 + int(seq_len % 8 > 0)
-        # self.attn_mask = torch.zeros([batch_size*self.opt.nhead, mask_seq_len, mask_seq_len]).long().to(self.segments)
-        # self.key_mask = torch.zeros([batch_size, mask_seq_len]).long().to(self.segments)
-        # for sample_num in range(batch_size):
-        #     length = self.len_comparE[sample_num] // 8 + int(self.len_comparE[sample_num] % 8 > 0)
-        #     self.attn_mask[sample_num*self.nhead:(sample_num+1)*self.nhead, 0:length, 0:length] = 1
-        #     self.key_mask[sample_num, :length] = 1
-        # self.attn_mask = self.attn_mask.bool()
-        # self.key_mask = self.key_mask.bool()
         
         self.segments = self.netenc(self.comparE)
         self.feat, self.A_hidden = self.netrnn(self.segments) # mask=self.attn_mask, src_key_padding_mask=self.key_mask)
@@ -130,19 +129,27 @@ class MovieLModel(BaseModel):
                 self.L_hidden = [self.L_hidden[i] for i in self.align_layers]
             self.A_log_pred = F.log_softmax(self.logits, dim=-1)
             self.A_hidden = self.A_hidden[-4:]
-            self.align_out1 = self.netalign1(self.L_hidden[0], self.A_hidden[0])
-            self.align_out2 = self.netalign1(self.L_hidden[1], self.A_hidden[1])
-            self.align_out3 = self.netalign1(self.L_hidden[2], self.A_hidden[2])
-            self.align_out4 = self.netalign1(self.L_hidden[3], self.A_hidden[3])
+            for i in range(len(self.align_layers)):
+                # calc aligned out of word-level alignment
+                alignnet = getattr(self, f'netalign{i}')
+                align_out = alignnet(self.L_hidden[i], self.A_hidden[i])
+                setattr(self, f'align_out{i}', align_out)
+                # calc aligned out of utterance level disillation
+                pooler = getattr(self, f'netpooler{i}')
+                pooler_out, _ = pooler(self.A_hidden[i])
+                setattr(self, f'pooler_out{i}', pooler_out)
         
     def backward(self):
         """Calculate the loss for back propagation"""
         self.loss_KD = self.criterion_kd(self.A_log_pred, self.L_pred) * self.kd_weight
-        self.loss_MSE1 = self.criterion_mse(self.align_out1, self.L_hidden[0]) * self.mse_weight1
-        self.loss_MSE2 = self.criterion_mse(self.align_out2, self.L_hidden[1]) * self.mse_weight2
-        self.loss_MSE3 = self.criterion_mse(self.align_out3, self.L_hidden[2]) * self.mse_weight3
-        self.loss_MSE4 = self.criterion_mse(self.align_out4, self.L_hidden[3]) * self.mse_weight4
-        self.total_loss = self.loss_KD + self.loss_MSE1 + self.loss_MSE2 + self.loss_MSE3 + self.loss_MSE4
+        self.total_loss = self.loss_KD
+        for i in range(len(self.align_layers)):
+            loss_utte_MSE = self.criterion_mse(getattr(self, f'pooler_out{i}'), torch.mean(self.L_hidden[i], dim=1)) * getattr(self, f'mse_weight{i+1}')
+            loss_word_MSE = self.criterion_mse(getattr(self, f'align_out{i}'), self.L_hidden[i]) * getattr(self, f'mse_weight{i+1}')
+            setattr(self, f'loss_utt{i}', loss_utte_MSE)
+            setattr(self, f'loss_word{i}', loss_word_MSE)
+            self.total_loss += loss_utte_MSE + loss_word_MSE
+
         self.total_loss.backward()
         for model in self.model_names:
             torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 5.0) # 0.1

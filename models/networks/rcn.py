@@ -140,7 +140,7 @@ if __name__ == '__main__':
     # print(out3.shape)
     # print(out4.shape)
     
-    x = torch.rand(2, 600, 130)
+    x = torch.rand(2, 8, 130)
     net = EncCNN1d(130, 256)
     out = net(x)
     print(net)

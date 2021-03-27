@@ -14,6 +14,7 @@ class AudioFinetuneDataset(BaseDataset):
     def modify_commandline_options(parser, isTrain=None):
         parser.add_argument('--cvNo', type=int, help='which cross validation set')
         parser.add_argument('--A_db_dir', type=str, help='where to load A_ft db')
+        parser.add_argument('--data_type', type=str, choices=['iemocap', 'meld'], default='iemocap')
         return parser
     
     def __init__(self, opt, set_name):
@@ -21,20 +22,34 @@ class AudioFinetuneDataset(BaseDataset):
             set_name in ['trn', 'val', 'tst']
         '''
         super().__init__(opt)
-        cvNo = opt.cvNo
-        label_path = "/data4/lrc/IEMOCAP_features_npy/target/{}/"
+        
         self.comparE_env = lmdb.open(opt.A_db_dir,\
              readonly=True, create=False, readahead=False)
         self.comparE_txn = self.comparE_env.begin()
         # mask for text feature
-        self.label = np.load(label_path.format(cvNo) + f"{set_name}_label.npy")
-        self.label = np.argmax(self.label, axis=1)
-        self.int2name = np.load(label_path.format(cvNo) + f"{set_name}_int2name.npy")
+        if opt.data_type == 'iemocap': 
+            cvNo = opt.cvNo
+            label_path = "/data4/lrc/IEMOCAP_features_npy/target/{}/"
+            self.label = np.load(label_path.format(cvNo) + f"{set_name}_label.npy")
+            self.label = np.argmax(self.label, axis=1)
+            self.int2name = np.load(label_path.format(cvNo) + f"{set_name}_int2name.npy")
+            self.int2name = [x[0].decode() for x in self.int2name]
+        else:
+            label_path = "/data4/lrc/movie_dataset/downstream/MELD/target/{}/{}"
+            name_map = {
+                'trn': 'train',
+                'val': "dev",
+                'tst': 'test'
+            }
+            self.label = np.load(label_path.format(name_map[set_name], "label.npy"))
+            self.int2name = np.load(label_path.format(name_map[set_name], "int2name.npy"))
+            self.int2name = [name_map[set_name] + "_" + "dia"+x[0].split('_')[0] + '_' + "utt"+x[0].split('_')[1] for x in self.int2name]
+        
         self.manual_collate_fn = True
         print(f"Finetune IEMOCAP dataset {set_name} created with total length: {len(self)}")
     
     def __getitem__(self, index):
-        int2name = self.int2name[index][0].decode()
+        int2name = self.int2name[index]
         comparE_dump = msgpack.loads(self.comparE_txn.get(int2name.encode('utf8')), raw=False)
         comparE_ft = comparE_dump['comparE'].copy()
         acoustic = torch.from_numpy(comparE_ft).float()

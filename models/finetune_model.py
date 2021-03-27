@@ -26,6 +26,7 @@ class FinetuneModel(BaseModel):
         parser.add_argument('--dim_feedforward', type=int, default=256)
         parser.add_argument('--pretrained_dir', type=str)
         parser.add_argument('--pretrained_epoch', type=int)
+        parser.add_argument('--resume', action='store_true')
         return parser
 
     def __init__(self, opt):
@@ -76,6 +77,7 @@ class FinetuneModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+        # with torch.no_grad():
         self.segments = self.netenc(self.signal)
         self.feat, _ = self.netrnn(self.segments)
         self.logits = self.netC(self.feat)

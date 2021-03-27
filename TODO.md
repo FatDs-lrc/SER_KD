@@ -221,11 +221,14 @@ transformer速度很快，比LSTM快很多
 
 
 
-只用KD - 0, 0.3, 0.5 ---
-KD + 4MSE - 0, 0.3, 0.5, 0.7 ---
-KD + 2MSE - 0, 0.3, 0.5, 0.7
-KD + last VS KD + skip （4MSE）
+1. 处理MELD, Val + tst 进入 V4
+2. 重新训练6个实验: KD, 1mse, 2mse, 3mse, 4mse, nokd 4mse
+3. finetune多个epoch找最好结果, 每个2次
+4. meld 单独训练的实验
 
-no KD + 4 MSE
-在IEMOCAP上测试
-teacher student match的程度 打印一个confusion matrix
+ablation:
+1. 消融实验
+2. teacher student match的程度 打印一个confusion matrix
+3. MELD中fear和disguest讨论, re-balance, re-weight, 能否加强
+
+

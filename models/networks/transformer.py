@@ -146,10 +146,10 @@ class AlignNet(nn.Module):
     def __init__(self, template_dim, align_ft_dim, num_heads=4):
         super().__init__()
         self.affine = nn.Sequential(
-            nn.Linear(align_ft_dim, template_dim),
-            nn.Tanh()
+            nn.Linear(align_ft_dim, template_dim, bias=False),
+            nn.GELU()
         )
-        self.query_affine = nn.Linear(template_dim, template_dim)
+        self.query_affine = nn.Linear(template_dim, template_dim, bias=False)
         self.template_dim = template_dim
         self.num_heads = num_heads
         self.dp = nn.Dropout(0.1)
@@ -179,6 +179,19 @@ class AlignNet(nn.Module):
         attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         # out, attn_weight = self.multihead_attn(template_ft, to_align, to_align)
         return attn_output.transpose(0, 1)
+
+class MeanPooler(nn.Module):
+    def __init__(self, template_dim, align_ft_dim):
+        super().__init__()
+        self.affine = nn.Sequential(
+            nn.Linear(align_ft_dim, template_dim, bias=False),
+            nn.GELU()
+        )
+    
+    def forward(self, audio_ft):
+        audio_ft = self.affine(audio_ft)
+        pooled_out = torch.mean(audio_ft, dim=0)
+        return pooled_out, audio_ft
 
 '''
 class TransformerEncoder(nn.Module):

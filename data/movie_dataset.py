@@ -14,8 +14,7 @@ msgpack_numpy.patch()
 class MovieDataset(BaseDataset):
     @staticmethod
     def modify_commandline_options(parser, isTrain=None):
-        parser.add_argument('--A_db_dir', type=str, help='which cross validation set')
-        parser.add_argument('--L_db_dir', type=str, help='which cross validation set')
+        parser.add_argument('--db_dir', type=str, help='which cross validation set')
         return parser
 
     def __init__(self, opt, set_name):
@@ -23,11 +22,17 @@ class MovieDataset(BaseDataset):
         '''
         super().__init__(opt)
         if set_name == 'trn':
-            A_db_dir = opt.A_db_dir
-            L_db_dir = opt.L_db_dir
+            db_dir = opt.db_dir
+            A_db_dir = osp.join(opt.db_dir, 'comparE.db')
+            L_db_dir = osp.join(opt.db_dir, 'bert_light.db')
+        elif set_name == 'val':
+            db_dir = '/data4/lrc/movie_dataset/dbs/iemocap'
+            A_db_dir = osp.join(db_dir, 'comparE.db')
+            L_db_dir = osp.join(db_dir, 'bert_light.db')
         else:
-            A_db_dir = "/data4/lrc/movie_dataset/dbs/v2_2/comparE.db"
-            L_db_dir = "/data4/lrc/movie_dataset/dbs/v2_2/bert_light.db"
+            db_dir = '/data4/lrc/movie_dataset/dbs/meld_5cls'
+            A_db_dir = osp.join(db_dir, 'comparE.db')
+            L_db_dir = osp.join(db_dir, 'bert_light.db')
 
         self.comparE_env = lmdb.open(A_db_dir,\
              readonly=True, create=False, readahead=False)
@@ -35,7 +40,7 @@ class MovieDataset(BaseDataset):
              readonly=True, create=False, readahead=False)
         self.comparE_txn = self.comparE_env.begin()
         self.roberta_txn = self.roberta_env.begin()
-        self.int2name = json.load(open(osp.join(L_db_dir, 'id.json')))
+        self.int2name = json.load(open(osp.join(db_dir, 'ids.json')))
         self.manual_collate_fn = True
         print(f"EmoMovie dataset created with total length: {len(self)}")
     
