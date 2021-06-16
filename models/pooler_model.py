@@ -31,8 +31,8 @@ class PoolerModel(BaseModel):
         # optimizer
         parser.add_argument('--temperature', type=float, default=2.0, help='Teacher softmax temperature')
         parser.add_argument('--kd_weight', type=float, default=1.0, help='weight of KD loss')
-        parser.add_argument('--word_weight', type=str, default='0.1,0.1,0.2,0.3', help='weight of KD loss')
-        parser.add_argument('--utt_weight', type=str, default='0.1,0.1,0.2,0.3', help='weight of KD loss')
+        parser.add_argument('--word_weight', type=str, default='0.1,0.1,0.2,0.3', help='weight of word-level align loss')
+        parser.add_argument('--utt_weight', type=str, default='0.1,0.1,0.2,0.3', help='weight of utt-level align loss')
         # resume    
         parser.add_argument('--resume', action='store_true')
         parser.add_argument('--resume_dir', type=str, default="", help='resume epoch')
@@ -70,6 +70,8 @@ class PoolerModel(BaseModel):
 
         for i in range(len(self.align_layers)):
             self.loss_names.append(f'utt{i}')
+
+        for i in range(len(self.align_layers)):
             self.loss_names.append(f'word{i}')
 
         teacher_path = '/data4/lrc/movie_dataset/pretrained/bert_movie_model'
@@ -79,12 +81,8 @@ class PoolerModel(BaseModel):
 
         if self.isTrain:
             self.kd_weight = opt.kd_weight
-            # self.mse_weight1 = opt.mse_weight1
-            # self.mse_weight2 = opt.mse_weight2
-            # self.mse_weight3 = opt.mse_weight3
-            # self.mse_weight4 = opt.mse_weight4
             self.word_weight = [float(x) for x in opt.word_weight.split(',')]
-            self.utt_weight = [float(x) for x in opt.word_weight.split(',')]
+            self.utt_weight = [float(x) for x in opt.utt_weight.split(',')]
 
             self.temperature = opt.temperature
             self.criterion_mse = torch.nn.MSELoss()
@@ -142,10 +140,10 @@ class PoolerModel(BaseModel):
     def backward(self):
         """Calculate the loss for back propagation"""
         self.loss_KD = self.criterion_kd(self.A_log_pred, self.L_pred) * self.kd_weight
-        self.total_loss = self.loss_KD
+        self.total_loss = torch.tensor(0.0).to(self.loss_KD) + self.loss_KD
         for i in range(len(self.align_layers)):
-            loss_utte_MSE = self.criterion_mse(getattr(self, f'pooler_out{i}'), torch.mean(self.L_hidden[i], dim=1)) * getattr(self, f'mse_weight{i+1}')
-            loss_word_MSE = self.criterion_mse(getattr(self, f'align_out{i}'), self.L_hidden[i]) * getattr(self, f'mse_weight{i+1}')
+            loss_utte_MSE = self.criterion_mse(getattr(self, f'pooler_out{i}'), torch.mean(self.L_hidden[i], dim=1)) * self.utt_weight[i]
+            loss_word_MSE = self.criterion_mse(getattr(self, f'align_out{i}'), self.L_hidden[i]) * self.word_weight[i]
             setattr(self, f'loss_utt{i}', loss_utte_MSE)
             setattr(self, f'loss_word{i}', loss_word_MSE)
             self.total_loss += loss_utte_MSE + loss_word_MSE

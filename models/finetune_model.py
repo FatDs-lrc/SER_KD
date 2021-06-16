@@ -80,6 +80,7 @@ class FinetuneModel(BaseModel):
         # with torch.no_grad():
         self.segments = self.netenc(self.signal)
         self.feat, _ = self.netrnn(self.segments)
+        
         self.logits = self.netC(self.feat)
         self.pred = F.softmax(self.logits, dim=-1)
         

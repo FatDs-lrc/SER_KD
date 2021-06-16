@@ -9,7 +9,7 @@ import msgpack
 import msgpack_numpy
 msgpack_numpy.patch()
 
-class AudioFinetuneDataset(BaseDataset):
+class AudioFinetuneNoTestDataset(BaseDataset):
     @staticmethod
     def modify_commandline_options(parser, isTrain=None):
         parser.add_argument('--cvNo', type=int, help='which cross validation set')
@@ -29,13 +29,23 @@ class AudioFinetuneDataset(BaseDataset):
         # mask for text feature
         if opt.data_type == 'iemocap': 
             cvNo = opt.cvNo
-            label_path = "/data12/lrc/lrc/IEMOCAP_features_npy/target/{}/"
-            self.label = np.load(label_path.format(cvNo) + f"{set_name}_label.npy")
-            self.label = np.argmax(self.label, axis=1)
-            self.int2name = np.load(label_path.format(cvNo) + f"{set_name}_int2name.npy")
-            self.int2name = [x[0].decode() for x in self.int2name]
+            label_path = "/data4/lrc/IEMOCAP_features_npy/target/{}/"
+            if set_name == 'val':
+                self.label = np.load(label_path.format(cvNo) + "tst_label.npy")
+                self.label = np.argmax(self.label, axis=1)
+                self.int2name = np.load(label_path.format(cvNo) + "tst_int2name.npy")
+                self.int2name = [x[0].decode() for x in self.int2name]
+            else:
+                label_trn = np.load(label_path.format(cvNo) + "trn_label.npy")
+                label_val = np.load(label_path.format(cvNo) + "val_label.npy")
+                self.label = np.concatenate([label_trn, label_val], axis=0)
+                self.label = np.argmax(self.label, axis=1)
+                int2name_trn = np.load(label_path.format(cvNo) + "trn_int2name.npy")
+                int2name_val = np.load(label_path.format(cvNo) + "val_int2name.npy")
+                self.int2name = np.concatenate([int2name_trn, int2name_val], axis=0)
+                self.int2name = [x[0].decode() for x in self.int2name]
         else:
-            label_path = "/data12/lrc/lrc/movie_dataset/downstream/MELD/target/{}/{}"
+            label_path = "/data4/lrc/movie_dataset/downstream/MELD/target/{}/{}"
             name_map = {
                 'trn': 'train',
                 'val': "dev",

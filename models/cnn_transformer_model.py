@@ -24,6 +24,10 @@ class CnnTransformerModel(BaseModel):
         parser.add_argument('--num_layers', type=int, default=2)
         parser.add_argument('--nhead', type=int, default=4)
         parser.add_argument('--dim_feedforward', type=int, default=256)
+
+        parser.add_argument('--resume', action='store_true')
+        parser.add_argument('--resume_dir', type=str, default="", help='resume epoch')
+        parser.add_argument('--resume_epoch', type=int, default=-1, help='resume epoch')
         return parser
 
     def __init__(self, opt):

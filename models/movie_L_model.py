@@ -63,7 +63,7 @@ class MovieLModel(BaseModel):
         self.netalign2 = AlignNet(768, opt.enc_channel*2, num_heads=4)
         self.netalign3 = AlignNet(768, opt.enc_channel*2, num_heads=4)
         self.netalign4 = AlignNet(768, opt.enc_channel*2, num_heads=4)
-        self.align_layers = [7, 8, 9, 11]
+        self.align_layers = [5, 7, 9, 11]
 
         teacher_path = '/data4/lrc/movie_dataset/pretrained/bert_movie_model'
         self.net_teacher = BertClassifier.from_pretrained(

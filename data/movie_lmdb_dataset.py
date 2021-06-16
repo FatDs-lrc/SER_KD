@@ -11,7 +11,7 @@ import msgpack
 import msgpack_numpy
 msgpack_numpy.patch()
 
-class MovieDataset(BaseDataset):
+class MovieLMDBDataset(BaseDataset):
     @staticmethod
     def modify_commandline_options(parser, isTrain=None):
         parser.add_argument('--db_dir', type=str, help='which cross validation set')
@@ -22,18 +22,10 @@ class MovieDataset(BaseDataset):
         ''' movie_dataset reader set_name in ['trn', 'val']
         '''
         super().__init__(opt)
-        if set_name == 'trn':
-            db_dir = opt.db_dir
-            A_db_dir = osp.join(opt.db_dir, 'comparE.db')
-            L_db_dir = osp.join(opt.db_dir, 'bert_light.db')
-        elif set_name == 'val':
-            db_dir = '/data4/lrc/movie_dataset/dbs/iemocap'
-            A_db_dir = osp.join(db_dir, 'comparE.db')
-            L_db_dir = osp.join(db_dir, 'bert_light.db')
-        else:
-            db_dir = '/data4/lrc/movie_dataset/dbs/meld_5cls'
-            A_db_dir = osp.join(db_dir, 'comparE.db')
-            L_db_dir = osp.join(db_dir, 'bert_light.db')
+
+        db_dir = opt.db_dir
+        A_db_dir = osp.join(opt.db_dir, 'comparE.db')
+        L_db_dir = osp.join(opt.db_dir, 'bert_light.db')
 
         self.comparE_env = lmdb.open(A_db_dir,\
              readonly=True, create=False, readahead=False)
@@ -42,9 +34,9 @@ class MovieDataset(BaseDataset):
         self.comparE_txn = self.comparE_env.begin()
         self.roberta_txn = self.roberta_env.begin()
         if set_name == 'trn':
-            self.int2name = json.load(open(osp.join(db_dir, f'ids_{opt.ratio}.json')))
+            self.int2name = json.load(open(osp.join(db_dir, f'{set_name}_{opt.ratio}.json')))
         else:
-            self.int2name = json.load(open(osp.join(db_dir, f'ids.json')))
+            self.int2name = json.load(open(osp.join(db_dir, f'{set_name}.json')))
         self.manual_collate_fn = True
         print(f"EmoMovie dataset created with total length: {len(self)}")
     
@@ -90,13 +82,16 @@ class MovieDataset(BaseDataset):
 
 if __name__ == '__main__':
     class test:
-        db_dir = '/data4/lrc/movie_dataset/dbs/v4'
-        ratio = '1-5'
-
+        db_dir = '/data4/lrc/movie_dataset/dbs/v2'
+        ratio = '1-2'
     
     opt = test()
-    a = MovieDataset(opt, set_name='trn')
-    print(len(a))
+    trn = MovieLMDBDataset(opt, 'trn')
+    val = MovieLMDBDataset(opt, 'val')
+    tst = MovieLMDBDataset(opt, 'tst')
+    print(len(trn))
+    print(len(val))
+    print(len(tst))
     # data0 = a[0]
     # data1 = a[1]
     # data2 = a[2]

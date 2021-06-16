@@ -27,7 +27,7 @@ def eval(model, val_iter, is_save=False, phase='test'):
     
     # calculate metrics
     # average_type = 'weighted' if phase in ['tst', 'test'] else 'macro'
-    average_type = 'weighted'
+    average_type = 'weighted' # 'weighted' # 'macro'
     total_pred = np.concatenate(total_pred)
     total_label = np.concatenate(total_label)
     acc = accuracy_score(total_label, total_pred)
@@ -133,7 +133,8 @@ if __name__ == '__main__':
         logger.info('Tst result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, _acc, _uar, _f1))
         logger.info('\n{}'.format(cm))
         
-        if uar > best_eval_uar:
+        # if uar > best_eval_uar:   # for IEMOCAP
+        if f1 > best_epoch_f1:      # for MELD
             best_eval_epoch = epoch
             best_eval_uar = uar
             best_epoch_acc = acc

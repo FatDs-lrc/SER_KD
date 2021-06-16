@@ -30,8 +30,9 @@ def eval(model, val_iter, is_save=False, phase='test'):
     total_pred = np.concatenate(total_pred)
     total_label = np.concatenate(total_label)
     acc = accuracy_score(total_label, total_pred)
-    uar = recall_score(total_label, total_pred, average='weighted')
-    f1 = f1_score(total_label, total_pred, average='weighted')
+    avg = opt.val_method
+    uar = recall_score(total_label, total_pred, average=avg)
+    f1 = f1_score(total_label, total_pred, average=avg)
     cm = confusion_matrix(total_label, total_pred)
     model.train()
     
@@ -118,10 +119,10 @@ if __name__ == '__main__':
         model.update_learning_rate(logger)                     # update learning rates at the end of every epoch.
 
         # eval trn set
-        if epoch % 4 == 0:
-            acc, uar, f1, cm = eval(model, dataset)
-            logger.info('Trn result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
-            logger.info('\n{}'.format(cm))
+        # if epoch % 4 == 0:
+        #     acc, uar, f1, cm = eval(model, dataset)
+        #     logger.info('Trn result of epoch %d / %d acc %.4f uar %.4f f1 %.4f' % (epoch, opt.niter + opt.niter_decay, acc, uar, f1))
+        #     logger.info('\n{}'.format(cm))
 
         # eval val set
         acc, uar, f1, cm = eval(model, val_dataset)
